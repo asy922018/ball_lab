@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공 운동 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 왼쪽 큰 실험 화면(칠판) + 오른쪽 분석 패널. 교실 프로젝터용 단일 어두운 칠판 테마 */
+:root{
+  color-scheme: dark;
+  --board:#17221f;      /* 칠판 바탕 */
+  --panel:#1e2b27;
+  --line:#33453f;
+  --chalk:#eef1e8;      /* 분필 흰색 */
+  --muted:#9fb0a8;
+  --grav:#ff7d6e;       /* 중력 */
+  --hand:#6cc8ff;       /* 손의 힘 */
+  --normal:#c9a3ff;     /* 수직항력 */
+  --vel:#f5d35a;        /* 속도 */
+  --net:#7ee0a0;        /* 알짜힘 */
+  --sans:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--board);color:var(--chalk);font-family:var(--sans);font-size:15px;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+header .sub{color:var(--muted);font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;color:var(--muted);border:0;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--chalk);color:var(--board);font-weight:700}
+.spacer{flex:1}
+main{flex:1;display:flex;min-height:0}
+#stageWrap{flex:1;position:relative;min-width:0;min-height:320px}
+#stage{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#camOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+#camOverlay .card{pointer-events:auto;background:rgba(23,34,31,.92);border:1px solid var(--line);border-radius:12px;padding:20px 22px;max-width:420px;display:flex;flex-direction:column;gap:10px}
+#camOverlay h2{margin:0;font-size:18px}
+#camOverlay p{margin:0;color:var(--muted);line-height:1.55;font-size:14px}
+.btn{background:var(--chalk);color:var(--board);border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--chalk);border:1px solid var(--line);font-weight:500}
+.btn:focus-visible,.seg button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--vel);outline-offset:2px}
+#status{position:absolute;right:12px;top:12px;font-size:13px;background:rgba(23,34,31,.8);border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);display:flex;gap:8px;align-items:center}
+#status .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+#status.ok .dot{background:var(--net)} #status.grab .dot{background:var(--hand)}
+aside{width:400px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:18px}
+section h3{margin:0 0 8px;font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.motion{font-size:20px;font-weight:700}
+.motion small{display:block;font-size:13px;color:var(--muted);font-weight:400;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted);font-size:13px}
+td{font-family:var(--mono);font-size:15px}
+td:first-child{font-family:var(--sans)}
+tr.net td{font-weight:600;color:var(--net);border-bottom:0}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:baseline}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.big div{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.big b{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.big span{font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;font-variant-numeric:tabular-nums}
+.kv div{display:flex;flex-direction:column}
+.kv b{font-size:12px;color:var(--muted);font-weight:500}
+.kv span{font-family:var(--mono);font-size:16px}
+.ctrl{display:grid;grid-template-columns:96px 1fr 64px;align-items:center;gap:6px 10px;margin-top:10px}
+.ctrl label{color:var(--muted);font-size:14px}
+.ctrl output{font-family:var(--mono);text-align:right}
+input[type=range]{width:100%;accent-color:var(--vel)}
+select{background:var(--board);color:var(--chalk);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.checks label{display:flex;gap:6px;align-items:center;font-size:14px}
+.result{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.6}
+.result table td{font-size:14px}
+.graphs canvas{width:100%;height:150px;display:block;background:var(--board);border:1px solid var(--line);border-radius:6px}
+.graphs .pair{display:grid;gap:8px;margin-top:8px}
+.note{color:var(--muted);font-size:13px;line-height:1.55}
+@media (max-width:900px){
+  main{flex-direction:column}
+  #stageWrap{flex:none;height:62vh}
+  aside{width:100%;border-left:0;border-top:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>공 운동 실험실</h1>
+  <span class="sub">손으로 공을 잡고 던져서 수평·수직 방향의 운동과 힘을 분석해요</span>
+  <span class="spacer"></span>
+  <div class="seg" role="group" aria-label="모드">
+    <button id="modeFree" aria-pressed="true">자유 모드 (손동작)</button>
+    <button id="modeExp" aria-pressed="false">실험 모드 (조건 설정)</button>
+  </div>
+  <button class="btn ghost" id="resetBtn">공 되돌리기</button>
+</header>
+<main>
+  <div id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div id="status"><span class="dot"></span><span id="statusText">카메라 꺼짐 · 마우스로도 잡을 수 있어요</span></div>
+    <div id="camOverlay">
+      <div class="card">
+        <h2>웹캠으로 손 인식 시작</h2>
+        <p>엄지와 검지를 <b>집거나</b> 주먹을 쥐면 공을 잡아요. 손을 움직이다 <b>펴면</b> 그 순간의 속도로 공이 날아가요. 가만히 펴면 자유낙하예요.</p>
+        <p>카메라 없이 마우스(터치)로 공을 끌어 던져도 같은 분석이 돼요.</p>
+        <div class="row">
+          <button class="btn" id="camBtn">카메라 켜기</button>
+          <button class="btn ghost" id="skipBtn">마우스로 할게요</button>
+        </div>
+        <p id="camErr" hidden></p>
+        <p id="fileTip" hidden style="font-size:13px">파일로 열면 크롬이 열 때마다 허용을 물어볼 수 있어요. 창이 뜨면 <b>허용</b>만 누르면 되고, 다음부터는 버튼 없이 카메라가 자동으로 켜져요.</p>
+      </div>
+    </div>
+  </div>
+  <aside>
+    <section>
+      <h3>현재 운동</h3>
+      <div class="motion" id="motionLabel">받침대 위에 정지<small id="motionSub">공을 잡아 보세요</small></div>
+    </section>
+
+    <section id="expPanel" hidden>
+      <h3>실험 조건</h3>
+      <div class="seg" role="group" aria-label="운동 종류" style="width:100%;font-size:13px">
+        <button data-k="horizontal" aria-pressed="true" style="flex:1;padding:8px 4px">수평 던지기</button>
+        <button data-k="oblique" aria-pressed="false" style="flex:1;padding:8px 4px">비스듬히 던지기</button>
+        <button data-k="drop" aria-pressed="false" style="flex:1;padding:8px 4px">자유낙하</button>
+      </div>
+      <div class="ctrl">
+        <label for="hIn">출발 높이 h</label><input id="hIn" type="range" min="0" max="3" step="0.1" value="1.5"><output id="hOut">1.5 m</output>
+        <label for="vIn" id="vLab">처음 속력 v₀</label><input id="vIn" type="range" min="0.5" max="7" step="0.1" value="3"><output id="vOut">3.0 m/s</output>
+        <label for="aIn" id="aLab">던지는 각도 θ</label><input id="aIn" type="range" min="-60" max="85" step="1" value="45"><output id="aOut">45°</output>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="launchBtn">발사</button>
+        <span class="note" id="theoryLine"></span>
+      </div>
+    </section>
+
+    <section>
+      <h3>공에 작용하는 힘 (질량 <span id="mLab">0.5</span> kg)</h3>
+      <table>
+        <thead><tr><th></th><th>수평 Fx (N)</th><th>수직 Fy (N)</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sw" style="background:var(--grav)"></span>중력</td><td id="gx">0.00</td><td id="gy">-4.90</td></tr>
+          <tr><td><span class="sw" style="background:var(--hand)"></span>손이 미는 힘</td><td id="hx">0.00</td><td id="hy">0.00</td></tr>
+          <tr><td><span class="sw" style="background:var(--normal)"></span>받침·바닥 수직항력</td><td id="nx">0.00</td><td id="ny">4.90</td></tr>
+          <tr class="net"><td>알짜힘</td><td id="fx">0.00</td><td id="fy">0.00</td></tr>
+        </tbody>
+      </table>
+      <div class="big" style="margin-top:10px">
+        <div><b>수평 방향 알짜힘</b><span id="bigFx">0.00 N</span></div>
+        <div><b>수직 방향 알짜힘</b><span id="bigFy">0.00 N</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h3>위치와 속도</h3>
+      <div class="kv">
+        <div><b>시간 t</b><span id="tV">0.00 s</span></div>
+        <div><b>x</b><span id="xV">0.00 m</span></div>
+        <div><b>y (바닥에서)</b><span id="yV">0.00 m</span></div>
+        <div><b>vx</b><span id="vxV">0.00 m/s</span></div>
+        <div><b>vy</b><span id="vyV">0.00 m/s</span></div>
+        <div><b>속력 |v|</b><span id="vV">0.00 m/s</span></div>
+      </div>
+    </section>
+
+    <section id="resultSec" hidden>
+      <h3>지난 운동 결과</h3>
+      <div class="result" id="resultBox"></div>
+    </section>
+
+    <section class="graphs">
+      <h3>그래프 (시간 t 기준)</h3>
+      <div class="seg" role="group" aria-label="그래프 종류">
+        <button data-g="pos" aria-pressed="false">위치</button>
+        <button data-g="vel" aria-pressed="true">속도</button>
+        <button data-g="force" aria-pressed="false">알짜힘</button>
+      </div>
+      <div class="pair">
+        <canvas id="gX"></canvas>
+        <canvas id="gY"></canvas>
+      </div>
+      <p class="note">세로 점선은 공을 놓은 순간이에요. 놓은 뒤에는 vx가 일정하고 vy는 일정하게 줄어들어요.</p>
+    </section>
+
+    <section>
+      <h3>설정</h3>
+      <div class="row">
+        <label for="massSel" class="note">질량</label>
+        <select id="massSel"><option value="0.1">0.1 kg</option><option value="0.5" selected>0.5 kg</option><option value="1">1 kg</option><option value="2">2 kg</option></select>
+        <label for="slowSel" class="note">재생 속도</label>
+        <select id="slowSel"><option value="1">실제 속도</option><option value="0.5">1/2 느리게</option><option value="0.25">1/4 느리게</option></select>
+      </div>
+      <div class="checks" style="margin-top:10px">
+        <label><input type="checkbox" id="cTrail" checked>궤적 (0.1초 간격)</label>
+        <label><input type="checkbox" id="cProj" checked>수평·수직 그림자 점</label>
+        <label><input type="checkbox" id="cVel" checked>속도 벡터</label>
+        <label><input type="checkbox" id="cForce" checked>힘 벡터</label>
+        <label><input type="checkbox" id="cVideo" checked>카메라 영상</label>
+        <label><input type="checkbox" id="cHand" checked>손 뼈대 표시</label>
+      </div>
+      <p class="note" style="margin-top:8px">공기저항은 없다고 가정해요 (중력가속도 g = 9.8 m/s²). 화면 세로 높이는 실제 4 m로 계산해요.</p>
+    </section>
+  </aside>
+</main>
+
+<script type="module">
+const G = 9.8, R = 0.12, WORLD_H = 4.0;
+const $ = id => document.getElementById(id);
+const cv = $('stage'), ctx = cv.getContext('2d');
+const S = {
+  mode:'free', expKind:'horizontal', h:1.5, v0:3, angle:45, mass:0.5, slow:1,
+  show:{trail:true, proj:true, vel:true, force:true, video:true, hand:true}
+};
+const css = getComputedStyle(document.documentElement);
+const C = k => css.getPropertyValue(k).trim();
+const COL = {grav:C('--grav'),hand:C('--hand'),normal:C('--normal'),vel:C('--vel'),net:C('--net'),chalk:C('--chalk'),muted:C('--muted'),line:C('--line'),board:C('--board')};
+
+// ---------- 화면 ↔ 세계 좌표 ----------
+let W=0,H=0,dpr=1,ppm=100,floorPy=0,Wm=8;
+function resize(){
+  const r = cv.getBoundingClientRect(); dpr = window.devicePixelRatio||1;
+  W=r.width; H=r.height; cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  floorPy = H-44; ppm = (floorPy-16)/WORLD_H; Wm = W/ppm;
+}
+new ResizeObserver(()=>{resize(); if(ball.phase==='parked') park();}).observe(cv);
+const toPx = (x,y) => [x*ppm, floorPy - y*ppm];           // y = 공 아랫면 높이
+const toWorld = (px,py) => [px/ppm, (floorPy-py)/ppm];
+
+// ---------- 공 상태 ----------
+const ball = {x:0,y:0,vx:0,vy:0,phase:'parked'}; // parked | held | flying | ground | gone
+const F = {hx:0,hy:0,ny:0};          // 손의 힘, 수직항력
+const Fs = {hx:0,hy:0,ny:0};         // 표시용(부드럽게)
+let stand = {x:0,y:1.2};             // 받침대(자유 모드) / 출발대(실험 모드)
+let simT = 0, goneAt = 0;
+let rec = null;                      // 기록
+let trail = [], nextDot = 0;
+let lastResult = null;
+const target = {x:0,y:0,vx:0,vy:0,src:null,lastSeen:0};
+const ballHist = [];                 // 놓을 때 속도 계산용 (실제 시간)
+
+function park(){
+  if(S.mode==='free'){ stand = {x:Wm/2, y:1.2}; }
+  else { stand = {x:0.9, y:S.h}; }
+  Object.assign(ball,{x:stand.x,y:stand.y,vx:0,vy:0,phase:'parked'});
+  F.hx=F.hy=0; F.ny = S.mass*G;
+}
+
+function startRec(){ rec = {t0:simT, rel:null, data:[]}; trail=[]; }
+function pushRec(){
+  if(!rec) return;
+  const m=S.mass;
+  const fx = F.hx, fy = F.hy + F.ny - m*G;
+  rec.data.push({t:simT-rec.t0,x:ball.x,y:ball.y,vx:ball.vx,vy:ball.vy,fx,fy});
+  if(rec.data.length>4000) rec.data.shift();
+}
+
+function classify(vx,vy){
+  const s=Math.hypot(vx,vy);
+  if(s<0.35) return ['자유낙하','처음 속도 0에서 중력만 받아 떨어져요'];
+  if(Math.abs(vy)<0.2*s) return ['수평 던지기','수평으로는 등속, 수직으로는 자유낙하'];
+  if(Math.abs(vx)<0.2*s) return vy>0?['연직 위로 던지기','올라가며 느려지다 최고점에서 vy = 0']:['연직 아래로 던지기','처음부터 아래로 속도를 가지고 가속돼요'];
+  return vy>0?['비스듬히 위로 던지기 (포물선)','수평 등속 + 수직 등가속도 → 포물선']:['비스듬히 아래로 던지기','수평 등속 + 수직 등가속도'];
+}
+let motion = ['받침대 위에 정지','공을 잡아 보세요'];
+
+function release(){
+  // 손을 펴는 동작이 인식되기까지 생기는 지연을 줄이려고, 최근 0.12초 중 가장 빠른 속도를 사용
+  const now=performance.now(); let best={vx:ball.vx,vy:ball.vy}, bs=-1;
+  for(const h of ballHist){ if(now-h.t<=120){ const s=Math.hypot(h.vx,h.vy); if(s>bs){bs=s;best=h;} } }
+  let {vx,vy}=best; const s=Math.hypot(vx,vy);
+  if(s<0.35){vx=0;vy=0;}
+  if(s>12){vx*=12/s;vy*=12/s;}
+  ball.vx=vx; ball.vy=vy; ball.phase='flying'; target.src=null;
+  F.hx=F.hy=0; F.ny=0;
+  launched(vx,vy);
+}
+function launched(vx,vy){
+  if(!rec) startRec();
+  rec.rel = simT-rec.t0;
+  rec.start = {x:ball.x,y:ball.y,vx,vy};
+  rec.maxY = ball.y;
+  trail=[{x:ball.x,y:ball.y}]; nextDot=simT+0.1;
+  motion = classify(vx,vy);
+  pushRec();
+}
+function grab(src){
+  ball.phase='held'; target.src=src; startRec(); ballHist.length=0;
+  motion=['손으로 잡고 있어요','손이 공에 힘을 주어 움직여요'];
+  $('resultSec').hidden = !lastResult;
+}
+function finish(kind){
+  if(!rec||rec.rel==null) return;
+  const st=rec.start, T=simT-rec.t0-rec.rel;
+  const res={kind, T, dx:ball.x-st.x, maxH:rec.maxY, vxL:ball.vx, vyL:ball.vy, start:st, label:motion[0]};
+  if(S.mode==='exp') res.theory = theory();
+  lastResult=res; showResult();
+}
+
+// ---------- 물리 (고정 시간 간격) ----------
+const OMEGA=26;
+function step(dt){
+  const m=S.mass;
+  if(ball.phase==='held'){
+    const k=m*OMEGA*OMEGA, c=2*m*OMEGA;
+    let fx=k*(target.x-ball.x)+c*(target.vx-ball.vx);
+    let fy=k*(target.y-ball.y)+c*(target.vy-ball.vy)+m*G;
+    const lim=m*150, f=Math.hypot(fx,fy); if(f>lim){fx*=lim/f;fy*=lim/f;}
+    F.hx=fx; F.hy=fy; F.ny=0;
+    ball.vx+=fx/m*dt; ball.vy+=(fy/m-G)*dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+    if(ball.y<0){ball.y=0; if(ball.vy<0) ball.vy=0; F.ny=Math.max(0,m*G-F.hy);}
+  } else if(ball.phase==='flying'){
+    F.hx=F.hy=F.ny=0;
+    ball.vy-=G*dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+    if(rec) rec.maxY=Math.max(rec.maxY,ball.y);
+    if(simT>=nextDot){trail.push({x:ball.x,y:ball.y}); nextDot+=0.1;}
+    if(ball.y<=0){
+      // 정확한 착지 시점으로 보정
+      const over=-ball.y/Math.max(1e-6,-ball.vy); ball.x-=ball.vx*over; ball.y=0; ball.vy+=G*over; simT-=over;
+      pushRec(); finish('land'); simT+=over;
+      ball.phase='ground'; ball.vy=0; ball.vx*=0.4; motion=['바닥에 착지','공을 다시 잡아 던져 보세요'];
+    } else if(ball.x<-0.6||ball.x>Wm+0.6||ball.y>WORLD_H+3){
+      finish('out'); ball.phase='gone'; goneAt=performance.now(); motion=['화면 밖으로 나갔어요','잠시 뒤 공이 돌아와요'];
+    }
+  } else if(ball.phase==='ground'){
+    F.hx=F.hy=0; F.ny=m*G; ball.vy=0; ball.y=0;
+    ball.vx*=Math.exp(-5*dt); ball.x+=ball.vx*dt;
+    if(ball.x<0){ball.x=0;ball.vx=0;} if(ball.x>Wm-2*R){ball.x=Wm-2*R;ball.vx=0;}
+  } else if(ball.phase==='parked'){
+    F.hx=F.hy=0; F.ny=m*G;
+  }
+}
+
+// ---------- 그리기 ----------
+function arrow(x0,y0,dx,dy,color,w=4,label){
+  const L=Math.hypot(dx,dy); if(L<3) return;
+  const ux=dx/L, uy=dy/L, hs=Math.min(14,L*0.5);
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+dx-ux*hs*0.8,y0+dy-uy*hs*0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x0+dx,y0+dy);
+  ctx.lineTo(x0+dx-ux*hs-uy*hs*0.55,y0+dy-uy*hs+ux*hs*0.55);
+  ctx.lineTo(x0+dx-ux*hs+uy*hs*0.55,y0+dy-uy*hs-ux*hs*0.55); ctx.closePath(); ctx.fill();
+  if(label){ ctx.font='600 14px '+getComputedStyle(document.body).fontFamily; ctx.fillText(label,x0+dx+ux*8+6,y0+dy+uy*8+5); }
+}
+const video=document.createElement('video'); video.playsInline=true; video.muted=true;
+let camOn=false, hands=[];
+function videoRect(){
+  const vw=video.videoWidth, vh=video.videoHeight; if(!vw) return null;
+  const s=Math.max(W/vw,H/vh); return {s,ox:(W-vw*s)/2,oy:(H-vh*s)/2,vw,vh};
+}
+function lmToPx(l,vr){ return [W-(vr.ox+l.x*vr.vw*vr.s), vr.oy+l.y*vr.vh*vr.s]; }
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=COL.board; ctx.fillRect(0,0,W,H);
+  const vr=videoRect();
+  if(camOn&&S.show.video&&vr){
+    ctx.save(); ctx.translate(W,0); ctx.scale(-1,1);
+    ctx.globalAlpha=0.45; ctx.drawImage(video,vr.ox,vr.oy,vr.vw*vr.s,vr.vh*vr.s); ctx.restore();
+    ctx.fillStyle='rgba(23,34,31,0.25)'; ctx.fillRect(0,0,W,H);
+  }
+  // 격자 (0.5 m)
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(238,241,232,0.08)';
+  for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,floorPy); ctx.stroke();}
+  for(let y=0;y<=WORLD_H;y+=0.5){const p=floorPy-y*ppm; ctx.beginPath(); ctx.moveTo(0,p); ctx.lineTo(W,p); ctx.stroke();}
+  // 바닥과 자
+  ctx.fillStyle='rgba(238,241,232,0.06)'; ctx.fillRect(0,floorPy,W,H-floorPy);
+  ctx.strokeStyle=COL.chalk; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,floorPy); ctx.lineTo(W,floorPy); ctx.stroke();
+  ctx.fillStyle=COL.muted; ctx.font='12px '+getComputedStyle(document.body).fontFamily; ctx.textAlign='center';
+  for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; const major=Math.abs(x%1)<1e-6;
+    ctx.strokeStyle=COL.muted; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(p,floorPy); ctx.lineTo(p,floorPy+(major?10:5)); ctx.stroke();
+    if(major) ctx.fillText(x+' m',p,floorPy+24);}
+  ctx.textAlign='left';
+  for(let y=1;y<=WORLD_H;y+=1){const p=floorPy-y*ppm; ctx.fillText(y+' m',4,p-4);}
+  // 받침대 / 출발대
+  if(S.mode==='free'){
+    if(ball.phase==='parked'){const [px,py]=toPx(stand.x,stand.y);
+      ctx.strokeStyle=COL.muted; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(px-30,py); ctx.lineTo(px+30,py); ctx.stroke();
+      ctx.setLineDash([4,5]); ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px,floorPy); ctx.stroke(); ctx.setLineDash([]);}
+  } else if(S.h>0){
+    const [px,py]=toPx(stand.x+2*R,S.h);
+    ctx.fillStyle='rgba(238,241,232,0.12)'; ctx.fillRect(0,py,px,floorPy-py);
+    ctx.strokeStyle=COL.muted; ctx.lineWidth=2; ctx.strokeRect(0,py,px,floorPy-py);
+    ctx.fillStyle=COL.muted; ctx.textAlign='right'; ctx.fillText('h = '+S.h.toFixed(1)+' m',px-8,py+18); ctx.textAlign='left';
+  }
+  // 그림자 점 (수평 투영: 바닥, 수직 투영: 왼쪽 벽)
+  if(S.show.proj&&trail.length>1){
+    for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R);
+      ctx.fillStyle=COL.vel; ctx.beginPath(); ctx.arc(px,floorPy+34-24,3.5,0,7); ctx.fill();
+      ctx.fillStyle=COL.grav; ctx.beginPath(); ctx.arc(52,py,3.5,0,7); ctx.fill();}
+    ctx.fillStyle=COL.muted; ctx.fillText('수평 위치 (간격 일정)',8,floorPy-6);
+    ctx.save(); ctx.translate(70,floorPy-ppm*0.3); ctx.rotate(-Math.PI/2); ctx.fillText('수직 위치 (간격이 점점 커짐)',0,0); ctx.restore();
+  }
+  // 궤적 점
+  if(S.show.trail){
+    ctx.strokeStyle='rgba(238,241,232,0.7)'; ctx.lineWidth=1.5;
+    for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
+  }
+  // 공
+  if(ball.phase!=='gone'){
+    const [bx,by]=toPx(ball.x+R,ball.y+R), br=R*ppm;
+    const g=ctx.createRadialGradient(bx-br*.35,by-br*.35,br*.1,bx,by,br);
+    g.addColorStop(0,'#fff6e0'); g.addColorStop(1,'#f0a24a');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
+    if(ball.phase==='held'){ctx.strokeStyle=COL.hand; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(bx,by,br+5,0,7); ctx.stroke();}
+    const m=S.mass, fScale=(0.55*ppm)/(m*G);  // mg 화살표 = 0.55 m 길이
+    if(S.show.force){
+      arrow(bx,by,0,m*G*fScale,COL.grav,5,'mg');
+      if(F.ny>0.01) arrow(bx,by,0,-Fs.ny*fScale,COL.normal,5,'N');
+      if(Math.hypot(Fs.hx,Fs.hy)>0.05){
+        let dx=Fs.hx*fScale, dy=-Fs.hy*fScale; const L=Math.hypot(dx,dy), Lm=3*m*G*fScale; if(L>Lm){dx*=Lm/L;dy*=Lm/L;}
+        arrow(bx,by,dx,dy,COL.hand,5,'F손');
+      }
+    }
+    if(S.show.vel&&(ball.phase==='flying'||ball.phase==='held')){
+      const vs=0.16*ppm; ctx.globalAlpha=0.55;
+      arrow(bx,by,ball.vx*vs,0,COL.vel,3,'vx'); arrow(bx,by,0,-ball.vy*vs,COL.vel,3,'vy');
+      ctx.globalAlpha=1; arrow(bx,by,ball.vx*vs,-ball.vy*vs,COL.vel,4,'v');
+    }
+  }
+  // 손 뼈대
+  if(camOn&&S.show.hand&&vr){
+    const LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    for(const h of hands){
+      ctx.strokeStyle=h.closed?COL.hand:'rgba(238,241,232,0.6)'; ctx.lineWidth=2;
+      for(const [a,b] of LINKS){const p=lmToPx(h.lm[a],vr),q=lmToPx(h.lm[b],vr); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();}
+      ctx.fillStyle=h.closed?COL.hand:COL.chalk; ctx.beginPath(); ctx.arc(h.px,h.py,h.closed?9:6,0,7); ctx.fill();
+    }
+  }
+  // 상단 라벨
+  ctx.fillStyle=COL.chalk; ctx.font='700 22px '+getComputedStyle(document.body).fontFamily; ctx.fillText(motion[0],16,34);
+}
+
+// ---------- 손 인식 ----------
+let landmarker=null, lastVideoT=-1;
+const isFile = location.protocol==='file:';
+const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const STEPS_DENIED = `<b>카메라가 차단되어 있어요. 이렇게 풀어 주세요</b>
+<ol style="margin:6px 0 0;padding-left:20px;line-height:1.7">
+<li>주소창 맨 왼쪽의 <b>자물쇠(또는 조절 아이콘)</b>를 누르세요</li>
+<li><b>카메라</b>를 <b>허용</b>으로 바꾸세요</li>
+<li>페이지를 <b>새로고침(F5)</b> 하세요</li></ol>`;
+function camErrorHtml(e){
+  const n=e&&e.name;
+  if(n==='NotAllowedError'||n==='SecurityError') return STEPS_DENIED;
+  if(n==='NotFoundError'||n==='OverconstrainedError') return '<b>연결된 카메라를 찾지 못했어요.</b><br>웹캠이 꽂혀 있는지 확인하고 다시 시도해 주세요.';
+  if(n==='NotReadableError'||n==='AbortError') return '<b>다른 프로그램이 카메라를 쓰고 있어요.</b><br>줌, 팀즈, 카메라 앱 등을 닫고 다시 시도해 주세요.';
+  return '<b>카메라를 켜지 못했어요.</b><br>크롬 브라우저인지 확인하고 다시 시도해 주세요. ('+(n||e.message||e)+')';
+}
+async function startCam(){
+  $('camBtn').disabled=true; $('camBtn').textContent='카메라 켜는 중…'; $('camErr').hidden=true;
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false});
+    video.srcObject=stream; await video.play();
+    store.set('ballLab.autoCam','1');
+  }catch(e){
+    $('camBtn').disabled=false; $('camBtn').textContent='다시 시도';
+    const err=$('camErr'); err.hidden=false; err.style.color='var(--chalk)'; err.innerHTML=camErrorHtml(e);
+    $('camOverlay').hidden=false;
+    return;
+  }
+  $('camBtn').textContent='손 인식 준비 중…';
+  try{
+    const V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+    const {HandLandmarker,FilesetResolver}=await import(V+'/vision_bundle.mjs');
+    const fs=await FilesetResolver.forVisionTasks(V+'/wasm');
+    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    try{ landmarker=await HandLandmarker.createFromOptions(fs,opts('GPU')); }
+    catch{ landmarker=await HandLandmarker.createFromOptions(fs,opts('CPU')); }
+    camOn=true; $('camOverlay').hidden=true; setStatus('ok','손 인식 중 · 집거나 주먹 쥐면 잡기');
+  }catch(e){
+    $('camBtn').disabled=false; $('camBtn').textContent='다시 시도';
+    const err=$('camErr'); err.hidden=false; err.style.color='var(--grav)';
+    err.innerHTML='<b>카메라는 켜졌지만 손 인식 프로그램을 불러오지 못했어요.</b><br>인터넷 연결을 확인하고 다시 시도해 주세요. 그동안 마우스로도 공을 던질 수 있어요.';
+  }
+}
+// 이미 허용했거나 전에 켠 적이 있으면 버튼 없이 바로 켜기
+(async()=>{
+  if(isFile) $('fileTip').hidden=false;
+  let granted=false;
+  try{ granted=(await navigator.permissions.query({name:'camera'})).state==='granted'; }catch{}
+  if(granted||store.get('ballLab.autoCam')==='1') startCam();
+})();
+function setStatus(cls,txt){ $('status').className=cls; $('statusText').textContent=txt; }
+const handState=new Map(); // index -> {closed}
+let handHist=[];
+function processHands(now){
+  if(!landmarker||video.readyState<2||video.currentTime===lastVideoT) return;
+  lastVideoT=video.currentTime;
+  const res=landmarker.detectForVideo(video,now);
+  const vr=videoRect(); if(!vr) return;
+  hands=[];
+  (res.landmarks||[]).forEach((lm,i)=>{
+    const d=(a,b)=>Math.hypot(lm[a].x-lm[b].x,lm[a].y-lm[b].y);
+    const size=d(0,9)+1e-6;
+    const pinch=d(4,8)/size;
+    const curl=(d(8,0)+d(12,0)+d(16,0)+d(20,0))/(4*size);
+    const prev=handState.get(i)?.closed||false;
+    const closed = prev ? (pinch<0.55||curl<1.25) : (pinch<0.32||curl<1.0);
+    handState.set(i,{closed});
+    const p = pinch<0.6 ? {x:(lm[4].x+lm[8].x)/2,y:(lm[4].y+lm[8].y)/2} : lm[9];
+    const [px,py]=lmToPx(p,vr);
+    hands.push({lm,closed,px,py});
+  });
+  for(let i=hands.length;i<4;i++) handState.delete(i);
+
+  if(target.src==='mouse') return;
+  const R2=R*ppm;
+  const [bx,by]=toPx(ball.x+R,ball.y+R);
+  if(ball.phase==='held'&&target.src==='hand'){
+    // 잡고 있는 손: 공에 가장 가까운 손
+    let h=null,best=1e9; for(const k of hands){const dd=Math.hypot(k.px-bx,k.py-by); if(dd<best){best=dd;h=k;}}
+    if(h&&best<R2*6){
+      target.lastSeen=now;
+      if(!h.closed){ release(); setStatus('ok','놓았어요!'); return; }
+      updateTarget(h.px,h.py,now);
+    }
+  } else if(ball.phase!=='held'){
+    for(const h of hands){
+      if(h.closed&&Math.hypot(h.px-bx,h.py-by)<R2*2.6&&ball.phase!=='gone'){
+        handHist=[]; updateTarget(h.px,h.py,now,true); grab('hand'); target.lastSeen=now; setStatus('grab','잡았어요 · 손을 펴면 놓아요'); break;
+      }
+    }
+  }
+}
+function updateTarget(px,py,now,reset){
+  let [wx,wy]=toWorld(px,py); wy-=R; wx-=R;
+  if(reset){handHist=[]; target.x=wx; target.y=wy;}
+  else { const a=0.6; target.x+= a*(wx-target.x); target.y+=a*(wy-target.y); }
+  handHist.push({t:now,x:target.x,y:target.y});
+  while(handHist.length&&now-handHist[0].t>100) handHist.shift();
+  if(handHist.length>=2){const a=handHist[0],b=handHist[handHist.length-1],dt=(b.t-a.t)/1000;
+    if(dt>0.01){target.vx=(b.x-a.x)/dt; target.vy=(b.y-a.y)/dt;}}
+  else {target.vx=0;target.vy=0;}
+}
+
+// ---------- 마우스 / 터치 ----------
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+  const [bx,by]=toPx(ball.x+R,ball.y+R);
+  if(ball.phase!=='gone'&&ball.phase!=='held'&&Math.hypot(px-bx,py-by)<R*ppm*2.2){
+    cv.setPointerCapture(e.pointerId); updateTarget(px,py,performance.now(),true); grab('mouse'); cv.style.cursor='grabbing';
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(target.src!=='mouse') return;
+  const r=cv.getBoundingClientRect(); updateTarget(e.clientX-r.left,e.clientY-r.top,performance.now());
+});
+const up=()=>{ if(target.src==='mouse'&&ball.phase==='held'){ release(); } cv.style.cursor='grab'; };
+cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+
+// ---------- 실험 모드 ----------
+function theory(){
+  const h=S.h, k=S.expKind; let v0=k==='drop'?0:S.v0, th=k==='oblique'?S.angle*Math.PI/180:0;
+  const vx=v0*Math.cos(th), vy=v0*Math.sin(th);
+  const T=(vy+Math.sqrt(vy*vy+2*G*h))/G;
+  return {T, R:vx*T, Hmax:h+(vy>0?vy*vy/(2*G):0), vx, vy, vyL:vy-G*T};
+}
+function updateTheoryLine(){
+  const t=theory();
+  $('theoryLine').textContent=`예상: 비행시간 ${t.T.toFixed(2)} s · 수평거리 ${t.R.toFixed(2)} m`+(S.expKind==='oblique'&&t.vy>0?` · 최고 높이 ${t.Hmax.toFixed(2)} m`:'');
+}
+function launch(){
+  park(); const t=theory(); simT=0; startRec();
+  ball.vx=t.vx; ball.vy=t.vy; ball.phase='flying'; F.ny=0; launched(t.vx,t.vy);
+  motion = S.expKind==='drop'?['자유낙하','처음 속도 0, 중력만 작용']:S.expKind==='horizontal'?['수평 던지기','수평으로는 등속, 수직으로는 자유낙하']:classify(t.vx,t.vy);
+}
+function showResult(){
+  const r=lastResult; if(!r){$('resultSec').hidden=true;return;}
+  $('resultSec').hidden=false;
+  const f=(v,d=2)=>v.toFixed(d);
+  let html=`<b>${r.label}</b> · ${r.kind==='land'?'바닥에 착지':'화면 밖으로 나감'}<br>
+  놓을 때 속도: vx = ${f(r.start.vx)} m/s, vy = ${f(r.start.vy)} m/s (속력 ${f(Math.hypot(r.start.vx,r.start.vy))} m/s)<br>`;
+  if(r.theory&&r.kind==='land'){
+    html+=`<table><thead><tr><th></th><th>측정</th><th>이론</th></tr></thead><tbody>
+    <tr><td>비행시간</td><td>${f(r.T)} s</td><td>${f(r.theory.T)} s</td></tr>
+    <tr><td>수평거리</td><td>${f(r.dx)} m</td><td>${f(r.theory.R)} m</td></tr>
+    <tr><td>최고 높이</td><td>${f(r.maxH)} m</td><td>${f(r.theory.Hmax)} m</td></tr>
+    <tr><td>착지 vy</td><td>${f(r.vyL)} m/s</td><td>${f(r.theory.vyL)} m/s</td></tr></tbody></table>`;
+  } else {
+    html+=`${r.kind==='land'?'비행시간':'화면 안에 있던 시간'} ${f(r.T)} s · 수평 이동 ${f(r.dx)} m · 최고 높이 ${f(r.maxH)} m`+(r.kind==='land'?`<br>착지 직전: vx = ${f(r.vxL)} m/s, vy = ${f(r.vyL)} m/s`:'');
+  }
+  $('resultBox').innerHTML=html;
+}
+
+// ---------- 패널 ----------
+const fmt=(v,d=2)=>(Math.abs(v)<0.005?0:v).toFixed(d);
+function updatePanel(){
+  const m=S.mass;
+  $('mLab').textContent=m;
+  $('gx').textContent='0.00'; $('gy').textContent=fmt(-m*G);
+  $('hx').textContent=fmt(Fs.hx); $('hy').textContent=fmt(Fs.hy);
+  $('nx').textContent='0.00'; $('ny').textContent=fmt(Fs.ny);
+  const fx=Fs.hx, fy=Fs.hy+Fs.ny-m*G;
+  $('fx').textContent=fmt(fx); $('fy').textContent=fmt(fy);
+  $('bigFx').textContent=fmt(fx)+' N'; $('bigFy').textContent=fmt(fy)+' N';
+  const t = rec&&rec.rel!=null&&(ball.phase==='flying') ? simT-rec.t0-rec.rel : (rec&&rec.rel!=null&&lastResult?lastResult.T:0);
+  $('tV').textContent=fmt(t)+' s';
+  $('xV').textContent=fmt(ball.x)+' m'; $('yV').textContent=fmt(ball.y)+' m';
+  $('vxV').textContent=fmt(ball.vx)+' m/s'; $('vyV').textContent=fmt(ball.vy)+' m/s'; $('vV').textContent=fmt(Math.hypot(ball.vx,ball.vy))+' m/s';
+  $('motionLabel').firstChild.textContent=motion[0]; $('motionSub').textContent=motion[1];
+}
+
+// ---------- 그래프 ----------
+let gKind='vel';
+function niceStep(range){const r=range/4, p=Math.pow(10,Math.floor(Math.log10(r))), n=r/p; return (n<1.5?1:n<3.5?2:n<7.5?5:10)*p;}
+function plot(canvas,key,title,unit,color){
+  const r=canvas.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  if(canvas.width!==Math.round(r.width*d)){canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);}
+  const c=canvas.getContext('2d'); c.setTransform(d,0,0,d,0,0);
+  const w=r.width,h=r.height, L=44,Rr=10,T=22,B=24;
+  c.clearRect(0,0,w,h);
+  const font=getComputedStyle(document.body).fontFamily;
+  c.fillStyle=COL.chalk; c.font='600 13px '+font; c.fillText(title,L,15);
+  const data=rec?rec.data:[];
+  let tmax=1, vmin=-1, vmax=1;
+  if(data.length){tmax=Math.max(0.5,data[data.length-1].t); for(const p of data){vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
+  if(key==='x'||key==='y'){vmin=Math.min(0,vmin);}
+  const pad=(vmax-vmin)*0.08; vmin-=pad; vmax+=pad;
+  const X=t=>L+(t/tmax)*(w-L-Rr), Y=v=>T+(1-(v-vmin)/(vmax-vmin))*(h-T-B);
+  c.font='11px '+font; c.fillStyle=COL.muted; c.strokeStyle='rgba(238,241,232,0.1)'; c.lineWidth=1;
+  const st=niceStep(vmax-vmin);
+  for(let v=Math.ceil(vmin/st)*st; v<=vmax; v+=st){const y=Y(v); c.beginPath(); c.moveTo(L,y); c.lineTo(w-Rr,y); c.stroke(); c.textAlign='right'; c.fillText((+v.toFixed(3))+'',L-5,y+4);}
+  const ts=niceStep(tmax);
+  c.textAlign='center'; for(let t=0;t<=tmax+1e-9;t+=ts){c.fillText((+t.toFixed(2))+'s',X(t),h-8);}
+  c.textAlign='left';
+  if(vmin<0&&vmax>0){c.strokeStyle='rgba(238,241,232,0.35)'; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(w-Rr,Y(0)); c.stroke();}
+  if(rec&&rec.rel!=null){c.strokeStyle=COL.muted; c.setLineDash([4,4]); c.beginPath(); c.moveTo(X(rec.rel),T); c.lineTo(X(rec.rel),h-B); c.stroke(); c.setLineDash([]);}
+  if(data.length>1){c.strokeStyle=color; c.lineWidth=2.2; c.beginPath(); data.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke();
+    const p=data[data.length-1]; c.fillStyle=color; c.beginPath(); c.arc(X(p.t),Y(p[key]),3.5,0,7); c.fill();}
+  else {c.fillStyle=COL.muted; c.fillText('공을 잡거나 발사하면 기록이 시작돼요',L+6,h/2);}
+  c.fillStyle=COL.muted; c.fillText(unit,4,15);
+}
+function drawGraphs(){
+  const map={pos:[['x','수평 위치 x – t','m',COL.vel],['y','수직 위치 y – t','m',COL.grav]],
+             vel:[['vx','수평 속도 vx – t','m/s',COL.vel],['vy','수직 속도 vy – t','m/s',COL.grav]],
+             force:[['fx','수평 알짜힘 Fx – t','N',COL.vel],['fy','수직 알짜힘 Fy – t','N',COL.grav]]}[gKind];
+  plot($('gX'),...map[0]); plot($('gY'),...map[1]);
+}
+
+// ---------- 메인 루프 ----------
+let lastFrame=performance.now(), acc=0, uiT=0, gT=0;
+const DT=1/240;
+function frame(now){
+  const realDt=Math.min(0.05,(now-lastFrame)/1000); lastFrame=now;
+  if(camOn) processHands(now);
+  if(ball.phase==='held'&&target.src==='hand'&&now-target.lastSeen>250){ release(); }
+  if(ball.phase==='gone'&&now-goneAt>1500){ park(); motion=['받침대 위에 정지','공을 잡아 보세요']; }
+  const scale = ball.phase==='flying'?S.slow:1;
+  acc+=realDt*scale;
+  while(acc>=DT){ step(DT); simT+=DT; acc-=DT; }
+  if(ball.phase==='held'){ ballHist.push({t:now,vx:ball.vx,vy:ball.vy}); while(ballHist.length&&now-ballHist[0].t>200) ballHist.shift(); }
+  if(ball.phase==='held'||ball.phase==='flying') pushRec();
+  const a=1-Math.exp(-realDt*18);
+  Fs.hx+=a*(F.hx-Fs.hx); Fs.hy+=a*(F.hy-Fs.hy); Fs.ny+=(F.ny>0&&Fs.ny===0)?F.ny:a*(F.ny-Fs.ny);
+  if(ball.phase==='flying'){Fs.hx=Fs.hy=Fs.ny=0;}
+  draw();
+  if(now-uiT>80){updatePanel(); uiT=now;}
+  if(now-gT>120){drawGraphs(); gT=now;}
+  requestAnimationFrame(frame);
+}
+
+// ---------- UI 연결 ----------
+function setMode(m){
+  S.mode=m; $('modeFree').setAttribute('aria-pressed',m==='free'); $('modeExp').setAttribute('aria-pressed',m==='exp');
+  $('expPanel').hidden = m!=='exp'; rec=null; trail=[]; lastResult=null; showResult(); park();
+  motion = m==='exp'?['출발대 위에 정지','조건을 정하고 발사를 눌러 보세요 (손으로 잡아 던져도 돼요)']:['받침대 위에 정지','공을 잡아 보세요'];
+  updateTheoryLine();
+}
+$('modeFree').onclick=()=>setMode('free'); $('modeExp').onclick=()=>setMode('exp');
+$('resetBtn').onclick=()=>{ rec=null; trail=[]; target.src=null; park(); motion=S.mode==='exp'?['출발대 위에 정지','발사를 눌러 보세요']:['받침대 위에 정지','공을 잡아 보세요']; };
+document.querySelectorAll('#expPanel [data-k]').forEach(b=>b.onclick=()=>{
+  S.expKind=b.dataset.k; document.querySelectorAll('#expPanel [data-k]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const drop=S.expKind==='drop', obl=S.expKind==='oblique';
+  $('vIn').disabled=drop; $('aIn').disabled=!obl; $('vLab').style.opacity=drop?.4:1; $('aLab').style.opacity=obl?1:.4;
+  $('aOut').textContent=obl?S.angle+'°':'0°';
+  if(drop&&S.h<0.5){S.h=1.5;$('hIn').value=1.5;$('hOut').textContent='1.5 m';}
+  updateTheoryLine(); if(ball.phase==='parked') park();
+});
+$('hIn').oninput=e=>{S.h=+e.target.value; $('hOut').textContent=S.h.toFixed(1)+' m'; updateTheoryLine(); if(ball.phase==='parked'||ball.phase==='ground') park();};
+$('vIn').oninput=e=>{S.v0=+e.target.value; $('vOut').textContent=S.v0.toFixed(1)+' m/s'; updateTheoryLine();};
+$('aIn').oninput=e=>{S.angle=+e.target.value; $('aOut').textContent=S.angle+'°'; updateTheoryLine();};
+$('launchBtn').onclick=launch;
+$('massSel').onchange=e=>{S.mass=+e.target.value; if(ball.phase==='parked'||ball.phase==='ground'){F.ny=S.mass*G;Fs.ny=F.ny;}};
+$('slowSel').onchange=e=>{S.slow=+e.target.value;};
+[['cTrail','trail'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
+document.querySelectorAll('.graphs [data-g]').forEach(b=>b.onclick=()=>{gKind=b.dataset.g; document.querySelectorAll('.graphs [data-g]').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawGraphs();});
+$('camBtn').onclick=startCam; $('skipBtn').onclick=()=>{$('camOverlay').hidden=true;};
+$('aIn').disabled=true; $('aLab').style.opacity=.4; $('aOut').textContent='0°';
+
+resize(); park(); Fs.ny=F.ny; updateTheoryLine(); requestAnimationFrame(frame);
+window.__lab={ball,S,launch,setMode,get rec(){return rec}};
+</script>
+</body>
+</html>
