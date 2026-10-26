@@ -353,17 +353,26 @@ function step(dt){
     F.hx=fx; F.hy=fy; F.ny=0;
     ball.vx+=fx/m*dt; ball.vy+=(fy/m-G)*dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
     if(ball.y<0){ball.y=0; if(ball.vy<0) ball.vy=0; F.ny=Math.max(0,m*G-F.hy);}
+    if(hasShelf() && ball.x<SHELF_W && ball.y<S.h){
+      // 선반 안으로 들어가면 덜 들어간 쪽(윗면 또는 옆면)으로 밀어냄
+      if(S.h-ball.y <= SHELF_W-ball.x){ ball.y=S.h; if(ball.vy<0) ball.vy=0; F.ny=Math.max(0,m*G-F.hy); }
+      else { ball.x=SHELF_W; if(ball.vx<0) ball.vx=0; }
+    }
   } else if(ball.phase==='flying'){
     F.hx=F.hy=F.ny=0;
-    const prevY=ball.y;
-    ball.vy-=G*dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
-    if(rec) rec.maxY=Math.max(rec.maxY,ball.y);
+    const prevY=ball.y, prevVy=ball.vy;
+    // 등가속도 운동 식을 그대로 사용 (오일러 적분 오차 없음)
+    ball.x+=ball.vx*dt; ball.y+=ball.vy*dt-0.5*G*dt*dt; ball.vy-=G*dt;
+    if(rec){ rec.maxY=Math.max(rec.maxY,ball.y); if(prevVy>0&&ball.vy<=0) rec.maxY=Math.max(rec.maxY,prevY+prevVy*prevVy/(2*G)); }
     if(simT>=nextDot){trail.push(dotNow()); nextDot+=S.dotInt;}
     if(hasShelf() && ball.y<S.h && ball.x<SHELF_W && ball.x-ball.vx*dt>=SHELF_W-1e-9){ ball.x=SHELF_W; ball.vx=-0.3*ball.vx; }
     const surf = (hasShelf() && prevY>=S.h-1e-9 && ball.y<S.h && onShelfX(ball.x)) ? S.h : (ball.y<=0 ? 0 : null);
     if(surf!==null){
       // 정확한 착지 시점으로 보정
-      const over=(surf-ball.y)/Math.max(1e-6,-ball.vy); ball.x-=ball.vx*over; ball.y=surf; ball.vy+=G*over; simT-=over;
+      // 표면을 지난 만큼의 시간 τ: ½gτ² + vyτ + (surf - y) = 0 의 작은 근
+      const c=surf-ball.y, disc=Math.max(0,ball.vy*ball.vy-2*G*c);
+      const over=Math.min(dt,Math.max(0,(-ball.vy-Math.sqrt(disc))/G));
+      ball.x-=ball.vx*over; ball.y=surf; ball.vy+=G*over; simT-=over;
       pushRec(); trail.push(dotNow()); finish(surf>0?'shelf':'land'); simT+=over;
       ball.vx*=0.4;
       restOn(surf, surf>0?MSG_SHELF:['바닥에 착지','공을 다시 잡아 던져 보세요']);
@@ -427,7 +436,7 @@ function draw(){
   ctx.fillStyle=COL.muted; ctx.font='12px '+getComputedStyle(document.body).fontFamily; ctx.textAlign='center';
   for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; const major=Math.abs(x%1)<1e-6;
     ctx.strokeStyle=COL.muted; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(p,floorPy); ctx.lineTo(p,floorPy+(major?10:5)); ctx.stroke();
-    if(major) ctx.fillText(x+' m',p,floorPy+24);}
+    if(major){ ctx.textAlign=x===0?'left':'center'; ctx.fillText(x+' m',x===0?p+2:p,floorPy+24); }}
   ctx.textAlign='left';
   for(let y=1;y<=WORLD_H;y+=1){const p=floorPy-y*ppm; ctx.fillText(y+' m',4,p-4);}
   // 받침대 / 출발대
@@ -734,11 +743,11 @@ const DT=1/240;
 function frame(now){
   const realDt=Math.min(0.05,(now-lastFrame)/1000); lastFrame=now;
   if(camOn) processHands(now);
-  if(ball.phase==='held'&&target.src==='hand'&&now-target.lastSeen>250){ release(); }
+  if(ball.phase==='held'&&target.src==='hand'&&now-target.lastSeen>250){ release(); setStatus('ok','손이 안 보여서 놓았어요'); }
   if(ball.phase==='gone'&&now-goneAt>1500){ park(); motion=S.mode==='exp'?MSG_SHELF:['받침대 위에 정지','공을 잡아 보세요']; }
   const scale = ball.phase==='flying'?S.slow:1;
   acc+=realDt*scale;
-  while(acc>=DT){ step(DT); simT+=DT; acc-=DT; }
+  while(acc>=DT){ simT+=DT; step(DT); acc-=DT; }
   if(ball.phase==='held'){ ballHist.push({t:now,vx:ball.vx,vy:ball.vy}); while(ballHist.length&&now-ballHist[0].t>200) ballHist.shift(); }
   if(ball.phase==='flying') pushRec();
   const a=1-Math.exp(-realDt*18);
