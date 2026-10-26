@@ -186,7 +186,7 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
         <div><b>수평 방향 알짜힘</b><span id="bigFx">0.00 N</span></div>
         <div><b>수직 방향 알짜힘</b><span id="bigFy">0.00 N</span></div>
       </div>
-      <p class="note" style="margin:8px 0 0">힘은 크기만 양수로 나타내요. 방향은 화면의 화살표로 확인해요.</p>
+      <p class="note" style="margin:8px 0 0">힘과 속도는 크기만 양수로 나타내요. 방향은 화면의 화살표로 확인해요.</p>
     </section>
 
     <section>
@@ -195,8 +195,8 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
         <div><b>시간 t</b><span id="tV">0.00 s</span></div>
         <div><b>수평 이동거리</b><span id="xV">0.00 m</span></div>
         <div><b>수직 이동거리</b><span id="yV">0.00 m</span></div>
-        <div><b>vx</b><span id="vxV">0.00 m/s</span></div>
-        <div><b>vy</b><span id="vyV">0.00 m/s</span></div>
+        <div><b>수평 속도 크기</b><span id="vxV">0.00 m/s</span></div>
+        <div><b>수직 속도 크기</b><span id="vyV">0.00 m/s</span></div>
         <div><b>속력 |v|</b><span id="vV">0.00 m/s</span></div>
       </div>
     </section>
@@ -218,7 +218,7 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
         <div class="pair" data-pair="vel"><canvas></canvas><canvas></canvas></div>
         <div class="pair" data-pair="force" hidden><canvas></canvas><canvas></canvas></div>
       </div>
-      <p class="note">버튼을 여러 개 눌러 그래프를 함께 볼 수 있어요. 공을 놓은 순간을 t = 0으로 기록하고, 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 vx는 일정하고 vy는 일정하게 줄어들어요.</p>
+      <p class="note">버튼을 여러 개 눌러 그래프를 함께 볼 수 있어요. 공을 놓은 순간을 t = 0으로 기록하고, 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 수평 속도는 일정하고, 수직 속도는 올라갈 때 줄고 내려올 때 늘어나요 (1초에 9.8 m/s씩).</p>
     </section>
 
     <section>
@@ -303,7 +303,7 @@ function pushRec(){
   if(!rec) return;
   const m=S.mass;
   const fx = Math.abs(F.hx), fy = Math.abs(F.hy + F.ny - m*G);
-  rec.data.push({t:simT-rec.t0,sx:rec.sx,sy:rec.sy,vx:ball.vx,vy:ball.vy,fx,fy});
+  rec.data.push({t:simT-rec.t0,sx:rec.sx,sy:rec.sy,vx:Math.abs(ball.vx),vy:Math.abs(ball.vy),fx,fy});
   if(rec.data.length>4000) rec.data.shift();
 }
 function dotNow(){
@@ -532,7 +532,7 @@ function drawDots(){
     ctx.fillStyle=COL.chalk; ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();
     if(sh.dotN){
       const lines=[`t ${fmt(d.t)} s`];
-      lines.push(`vx ${fmt(d.vx)}  vy ${fmt(d.vy)}`);
+      lines.push(`vx ${fmt(Math.abs(d.vx))}  vy ${fmt(Math.abs(d.vy))}`);   // 속도도 크기로 표시
       lines.push(`Fx ${fmt(Math.abs(d.fx))}  Fy ${fmt(Math.abs(d.fy))}`);   // 힘은 크기로 표시
       ctx.font='11px '+(css.getPropertyValue('--mono')||'monospace');
       const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+10, h=lines.length*13+6;
@@ -688,17 +688,17 @@ function launch(){
 function showResult(){
   const r=lastResult; if(!r){$('resultSec').hidden=true;return;}
   $('resultSec').hidden=false;
-  const f=(v,d=2)=>v.toFixed(d);
+  const f=(v,d=2)=>v.toFixed(d), a=v=>f(Math.abs(v));   // 속도는 크기로 표시
   let html=`<b>${r.label}</b> · ${r.kind==='land'?'바닥에 착지':r.kind==='shelf'?'선반에 착지':'화면 밖으로 나감'}<br>
-  놓을 때 속도: vx = ${f(r.start.vx)} m/s, vy = ${f(r.start.vy)} m/s (속력 ${f(Math.hypot(r.start.vx,r.start.vy))} m/s)<br>`;
+  놓을 때 속도: 수평 ${a(r.start.vx)} m/s, 수직 ${a(r.start.vy)} m/s (속력 ${f(Math.hypot(r.start.vx,r.start.vy))} m/s)<br>`;
   if(r.theory&&r.kind==='land'){
     html+=`<table><thead><tr><th></th><th>측정</th><th>이론</th></tr></thead><tbody>
     <tr><td>비행시간</td><td>${f(r.T)} s</td><td>${f(r.theory.T)} s</td></tr>
     <tr><td>수평거리</td><td>${f(r.dx)} m</td><td>${f(r.theory.R)} m</td></tr>
     <tr><td>최고 높이</td><td>${f(r.maxH)} m</td><td>${f(r.theory.Hmax)} m</td></tr>
-    <tr><td>착지 vy</td><td>${f(r.vyL)} m/s</td><td>${f(r.theory.vyL)} m/s</td></tr></tbody></table>`;
+    <tr><td>착지 수직 속도</td><td>${a(r.vyL)} m/s</td><td>${a(r.theory.vyL)} m/s</td></tr></tbody></table>`;
   } else {
-    html+=`${r.kind==='land'?'비행시간':'화면 안에 있던 시간'} ${f(r.T)} s · 수평 이동 ${f(r.dx)} m · 최고 높이 ${f(r.maxH)} m`+(r.kind==='land'?`<br>착지 직전: vx = ${f(r.vxL)} m/s, vy = ${f(r.vyL)} m/s`:'');
+    html+=`${r.kind==='land'?'비행시간':'화면 안에 있던 시간'} ${f(r.T)} s · 수평 이동 ${f(r.dx)} m · 최고 높이 ${f(r.maxH)} m`+(r.kind==='land'?`<br>착지 직전 속도: 수평 ${a(r.vxL)} m/s, 수직 ${a(r.vyL)} m/s`:'');
   }
   $('resultBox').innerHTML=html;
 }
@@ -719,7 +719,7 @@ function updatePanel(){
   $('tV').textContent=fmt(t)+' s';
   const sx=rec&&ball.phase!=='held'?rec.sx:0, sy=rec&&ball.phase!=='held'?rec.sy:0;
   $('xV').textContent=fmt(sx)+' m'; $('yV').textContent=fmt(sy)+' m';
-  $('vxV').textContent=fmt(ball.vx)+' m/s'; $('vyV').textContent=fmt(ball.vy)+' m/s'; $('vV').textContent=fmt(Math.hypot(ball.vx,ball.vy))+' m/s';
+  $('vxV').textContent=fmt(Math.abs(ball.vx))+' m/s'; $('vyV').textContent=fmt(Math.abs(ball.vy))+' m/s'; $('vV').textContent=fmt(Math.hypot(ball.vx,ball.vy))+' m/s';
   $('motionLabel').firstChild.textContent=motion[0]; $('motionSub').textContent=motion[1];
 }
 
@@ -737,7 +737,7 @@ function plot(canvas,key,title,unit,color){
   const data=rec?rec.data:[];
   let tmax=1, vmin=-1, vmax=1;
   if(data.length){tmax=Math.max(0.5,data[data.length-1].t); for(const p of data){vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
-  const nonNeg=['sx','sy','fx','fy'].includes(key);   // 이동거리와 힘 크기는 0 이상
+  const nonNeg=['sx','sy','vx','vy','fx','fy'].includes(key);   // 이동거리, 속도·힘 크기는 0 이상
   if(nonNeg) vmin=0;
   const pad=(vmax-vmin)*0.08; vmin-=nonNeg?0:pad; vmax+=pad;
   const X=t=>L+(t/tmax)*(w-L-Rr), Y=v=>T+(1-(v-vmin)/(vmax-vmin))*(h-T-B);
@@ -754,7 +754,7 @@ function plot(canvas,key,title,unit,color){
   c.fillStyle=COL.muted; c.fillText(unit,4,15);
 }
 const GMAP={pos:[['sx','수평 이동거리 – t','m',COL.vel],['sy','수직 이동거리 – t','m',COL.grav]],
-            vel:[['vx','수평 속도 vx – t','m/s',COL.vel],['vy','수직 속도 vy – t','m/s',COL.grav]],
+            vel:[['vx','수평 속도 크기 – t','m/s',COL.vel],['vy','수직 속도 크기 – t','m/s',COL.grav]],
             force:[['fx','수평 알짜힘 크기 – t','N',COL.vel],['fy','수직 알짜힘 크기 – t','N',COL.grav]]};
 function drawGraphs(){
   for(const k in GMAP){ if(!gOn[k]) continue;
