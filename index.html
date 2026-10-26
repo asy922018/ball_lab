@@ -80,6 +80,7 @@ select{background:var(--board);color:var(--chalk);border:1px solid var(--line);b
 .result table td{font-size:14px}
 .graphs canvas{width:100%;height:150px;display:block;background:var(--board);border:1px solid var(--line);border-radius:6px}
 .graphs .pair{display:grid;gap:8px;margin-top:8px}
+#graphList{--gn:1}
 .note{color:var(--muted);font-size:13px;line-height:1.55}
 @media (max-width:900px){
   main{flex-direction:column}
@@ -92,7 +93,7 @@ body.fs header{display:none}
 body.fs aside{width:340px;gap:14px}
 body.fs aside>section:not(.fs-keep){display:none}
 body.fs .graphs .note{display:none}
-body.fs .graphs canvas{height:calc((100vh - 230px)/2);min-height:120px}
+body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(--gn)));min-height:80px}
 @media (max-width:900px){
   body.fs #stageWrap{height:58vh}
   body.fs aside{width:100%}
@@ -173,9 +174,9 @@ body.fs .graphs canvas{height:calc((100vh - 230px)/2);min-height:120px}
     <section>
       <h3>공에 작용하는 힘 (질량 <span id="mLab">0.5</span> kg)</h3>
       <table>
-        <thead><tr><th></th><th>수평 Fx (N)</th><th>수직 Fy (N)</th></tr></thead>
+        <thead><tr><th></th><th>수평 크기 (N)</th><th>수직 크기 (N)</th></tr></thead>
         <tbody>
-          <tr><td><span class="sw" style="background:var(--grav)"></span>중력</td><td id="gx">0.00</td><td id="gy">-4.90</td></tr>
+          <tr><td><span class="sw" style="background:var(--grav)"></span>중력</td><td id="gx">0.00</td><td id="gy">4.90</td></tr>
           <tr><td><span class="sw" style="background:var(--hand)"></span>손이 미는 힘</td><td id="hx">0.00</td><td id="hy">0.00</td></tr>
           <tr><td><span class="sw" style="background:var(--normal)"></span>받침·바닥 수직항력</td><td id="nx">0.00</td><td id="ny">4.90</td></tr>
           <tr class="net"><td>알짜힘</td><td id="fx">0.00</td><td id="fy">0.00</td></tr>
@@ -185,14 +186,15 @@ body.fs .graphs canvas{height:calc((100vh - 230px)/2);min-height:120px}
         <div><b>수평 방향 알짜힘</b><span id="bigFx">0.00 N</span></div>
         <div><b>수직 방향 알짜힘</b><span id="bigFy">0.00 N</span></div>
       </div>
+      <p class="note" style="margin:8px 0 0">힘은 크기만 양수로 나타내요. 방향은 화면의 화살표로 확인해요.</p>
     </section>
 
     <section>
-      <h3>위치와 속도</h3>
+      <h3>이동거리와 속도</h3>
       <div class="kv">
         <div><b>시간 t</b><span id="tV">0.00 s</span></div>
-        <div><b>x</b><span id="xV">0.00 m</span></div>
-        <div><b>y (바닥에서)</b><span id="yV">0.00 m</span></div>
+        <div><b>수평 이동거리</b><span id="xV">0.00 m</span></div>
+        <div><b>수직 이동거리</b><span id="yV">0.00 m</span></div>
         <div><b>vx</b><span id="vxV">0.00 m/s</span></div>
         <div><b>vy</b><span id="vyV">0.00 m/s</span></div>
         <div><b>속력 |v|</b><span id="vV">0.00 m/s</span></div>
@@ -206,16 +208,17 @@ body.fs .graphs canvas{height:calc((100vh - 230px)/2);min-height:120px}
 
     <section class="graphs fs-keep">
       <h3>그래프 (시간 t 기준)</h3>
-      <div class="seg" role="group" aria-label="그래프 종류">
-        <button data-g="pos" aria-pressed="false">위치</button>
+      <div class="seg" role="group" aria-label="그래프 종류 (여러 개 선택 가능)">
+        <button data-g="pos" aria-pressed="false">이동거리</button>
         <button data-g="vel" aria-pressed="true">속도</button>
         <button data-g="force" aria-pressed="false">알짜힘</button>
       </div>
-      <div class="pair">
-        <canvas id="gX"></canvas>
-        <canvas id="gY"></canvas>
+      <div id="graphList">
+        <div class="pair" data-pair="pos" hidden><canvas></canvas><canvas></canvas></div>
+        <div class="pair" data-pair="vel"><canvas></canvas><canvas></canvas></div>
+        <div class="pair" data-pair="force" hidden><canvas></canvas><canvas></canvas></div>
       </div>
-      <p class="note">공을 놓은 순간을 t = 0으로 기록해요. 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 vx는 일정하고 vy는 일정하게 줄어들어요.</p>
+      <p class="note">버튼을 여러 개 눌러 그래프를 함께 볼 수 있어요. 공을 놓은 순간을 t = 0으로 기록하고, 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 vx는 일정하고 vy는 일정하게 줄어들어요.</p>
     </section>
 
     <section>
@@ -295,12 +298,12 @@ function park(){
   }
 }
 
-function startRec(){ rec = {t0:simT, rel:0, data:[]}; }
+function startRec(){ rec = {t0:simT, rel:0, data:[], sx:0, sy:0}; }
 function pushRec(){
   if(!rec) return;
   const m=S.mass;
-  const fx = F.hx, fy = F.hy + F.ny - m*G;
-  rec.data.push({t:simT-rec.t0,x:ball.x,y:ball.y,vx:ball.vx,vy:ball.vy,fx,fy});
+  const fx = Math.abs(F.hx), fy = Math.abs(F.hy + F.ny - m*G);
+  rec.data.push({t:simT-rec.t0,sx:rec.sx,sy:rec.sy,vx:ball.vx,vy:ball.vy,fx,fy});
   if(rec.data.length>4000) rec.data.shift();
 }
 function dotNow(){
@@ -350,7 +353,7 @@ function finish(kind){
   if(!rec||!rec.start) return;
   const st=rec.start, T=simT-rec.t0;
   if(kind==='shelf'&&T<0.08) return;
-  const res={kind, T, dx:ball.x-st.x, maxH:rec.maxY, vxL:ball.vx, vyL:ball.vy, start:st, label:motion[0]};
+  const res={kind, T, dx:Math.abs(ball.x-st.x), maxH:rec.maxY, vxL:ball.vx, vyL:ball.vy, start:st, label:motion[0]};
   if(S.mode==='exp'&&rec.fromLaunch) res.theory = theory();
   lastResult=res; showResult();
 }
@@ -374,7 +377,10 @@ function step(dt){
     }
   } else if(ball.phase==='flying'){
     F.hx=F.hy=F.ny=0;
-    const prevY=ball.y, prevVy=ball.vy;
+    const prevX=ball.x, prevY=ball.y, prevVy=ball.vy;
+    const addPath=()=>{ if(!rec) return; rec.sx+=Math.abs(ball.x-prevX);
+      // 최고점을 지나는 step은 올라간 거리 + 내려간 거리
+      rec.sy+= (prevVy>0&&ball.vy<=0) ? 2*(prevVy*prevVy/(2*G))-(ball.y-prevY) : Math.abs(ball.y-prevY); };
     // 등가속도 운동 식을 그대로 사용 (오일러 적분 오차 없음)
     ball.x+=ball.vx*dt; ball.y+=ball.vy*dt-0.5*G*dt*dt; ball.vy-=G*dt;
     if(rec){ rec.maxY=Math.max(rec.maxY,ball.y); if(prevVy>0&&ball.vy<=0) rec.maxY=Math.max(rec.maxY,prevY+prevVy*prevVy/(2*G)); }
@@ -386,11 +392,11 @@ function step(dt){
       // 표면을 지난 만큼의 시간 τ: ½gτ² + vyτ + (surf - y) = 0 의 작은 근
       const c=surf-ball.y, disc=Math.max(0,ball.vy*ball.vy-2*G*c);
       const over=Math.min(dt,Math.max(0,(-ball.vy-Math.sqrt(disc))/G));
-      ball.x-=ball.vx*over; ball.y=surf; ball.vy+=G*over; simT-=over;
+      ball.x-=ball.vx*over; ball.y=surf; ball.vy+=G*over; simT-=over; addPath();
       pushRec(); trail.push(dotNow()); finish(surf>0?'shelf':'land'); simT+=over;
       ball.vx*=0.4;
       restOn(surf, surf>0?MSG_SHELF:['바닥에 착지','공을 다시 잡아 던져 보세요']);
-    } else if(ball.x<-0.6||ball.x>Wm+0.6||ball.y>WORLD_H+3){
+    } else if((addPath(),ball.x<-0.6||ball.x>Wm+0.6||ball.y>WORLD_H+3)){
       finish('out'); ball.phase='gone'; goneAt=performance.now(); motion=['화면 밖으로 나갔어요','잠시 뒤 공이 돌아와요'];
     }
   } else if(ball.phase==='rest'){
@@ -469,8 +475,8 @@ function draw(){
     for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R);
       ctx.fillStyle=COL.vel; ctx.beginPath(); ctx.arc(px,floorPy+34-24,3.5,0,7); ctx.fill();
       ctx.fillStyle=COL.grav; ctx.beginPath(); ctx.arc(52,py,3.5,0,7); ctx.fill();}
-    ctx.fillStyle=COL.muted; ctx.fillText('수평 위치 (간격 일정)',8,floorPy-6);
-    ctx.save(); ctx.translate(70,floorPy-ppm*0.3); ctx.rotate(-Math.PI/2); ctx.fillText('수직 위치 (간격이 점점 커짐)',0,0); ctx.restore();
+    ctx.fillStyle=COL.muted; ctx.fillText('수평 이동거리 (간격 일정)',8,floorPy-6);
+    ctx.save(); ctx.translate(70,floorPy-ppm*0.3); ctx.rotate(-Math.PI/2); ctx.fillText('수직 이동거리 (간격이 점점 커짐)',0,0); ctx.restore();
   }
   // 궤적 점
   if(S.show.trail){
@@ -527,7 +533,7 @@ function drawDots(){
     if(sh.dotN){
       const lines=[`t ${fmt(d.t)} s`];
       lines.push(`vx ${fmt(d.vx)}  vy ${fmt(d.vy)}`);
-      lines.push(`Fx ${fmt(d.fx)}  Fy ${fmt(d.fy)}`);
+      lines.push(`Fx ${fmt(Math.abs(d.fx))}  Fy ${fmt(Math.abs(d.fy))}`);   // 힘은 크기로 표시
       ctx.font='11px '+(css.getPropertyValue('--mono')||'monospace');
       const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+10, h=lines.length*13+6;
       // 위아래로 번갈아 놓아 겹침을 줄임
@@ -702,25 +708,27 @@ const fmt=(v,d=2)=>(Math.abs(v)<0.005?0:v).toFixed(d);
 function updatePanel(){
   const m=S.mass;
   $('mLab').textContent=m;
-  $('gx').textContent='0.00'; $('gy').textContent=fmt(-m*G);
-  $('hx').textContent=fmt(Fs.hx); $('hy').textContent=fmt(Fs.hy);
-  $('nx').textContent='0.00'; $('ny').textContent=fmt(Fs.ny);
-  const fx=Fs.hx, fy=Fs.hy+Fs.ny-m*G;
+  const A=v=>fmt(Math.abs(v));   // 힘은 크기(양수)로 표시
+  $('gx').textContent='0.00'; $('gy').textContent=A(m*G);
+  $('hx').textContent=A(Fs.hx); $('hy').textContent=A(Fs.hy);
+  $('nx').textContent='0.00'; $('ny').textContent=A(Fs.ny);
+  const fx=Math.abs(Fs.hx), fy=Math.abs(Fs.hy+Fs.ny-m*G);
   $('fx').textContent=fmt(fx); $('fy').textContent=fmt(fy);
   $('bigFx').textContent=fmt(fx)+' N'; $('bigFy').textContent=fmt(fy)+' N';
   const t = rec&&ball.phase==='flying' ? simT-rec.t0 : (ball.phase==='held'?0:(lastResult?lastResult.T:0));
   $('tV').textContent=fmt(t)+' s';
-  $('xV').textContent=fmt(ball.x)+' m'; $('yV').textContent=fmt(ball.y)+' m';
+  const sx=rec&&ball.phase!=='held'?rec.sx:0, sy=rec&&ball.phase!=='held'?rec.sy:0;
+  $('xV').textContent=fmt(sx)+' m'; $('yV').textContent=fmt(sy)+' m';
   $('vxV').textContent=fmt(ball.vx)+' m/s'; $('vyV').textContent=fmt(ball.vy)+' m/s'; $('vV').textContent=fmt(Math.hypot(ball.vx,ball.vy))+' m/s';
   $('motionLabel').firstChild.textContent=motion[0]; $('motionSub').textContent=motion[1];
 }
 
 // ---------- 그래프 ----------
-let gKind='vel';
-function niceStep(range){const r=range/4, p=Math.pow(10,Math.floor(Math.log10(r))), n=r/p; return (n<1.5?1:n<3.5?2:n<7.5?5:10)*p;}
+const gOn={pos:false,vel:true,force:false};
+function niceStep(range,cnt=4){const r=range/cnt, p=Math.pow(10,Math.floor(Math.log10(r))), n=r/p; return (n<1.5?1:n<3.5?2:n<7.5?5:10)*p;}
 function plot(canvas,key,title,unit,color){
   const r=canvas.getBoundingClientRect(), d=window.devicePixelRatio||1;
-  if(canvas.width!==Math.round(r.width*d)){canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);}
+  if(canvas.width!==Math.round(r.width*d)||canvas.height!==Math.round(r.height*d)){canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);}
   const c=canvas.getContext('2d'); c.setTransform(d,0,0,d,0,0);
   const w=r.width,h=r.height, L=44,Rr=10,T=22,B=24;
   c.clearRect(0,0,w,h);
@@ -729,11 +737,12 @@ function plot(canvas,key,title,unit,color){
   const data=rec?rec.data:[];
   let tmax=1, vmin=-1, vmax=1;
   if(data.length){tmax=Math.max(0.5,data[data.length-1].t); for(const p of data){vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
-  if(key==='x'||key==='y'){vmin=Math.min(0,vmin);}
-  const pad=(vmax-vmin)*0.08; vmin-=pad; vmax+=pad;
+  const nonNeg=['sx','sy','fx','fy'].includes(key);   // 이동거리와 힘 크기는 0 이상
+  if(nonNeg) vmin=0;
+  const pad=(vmax-vmin)*0.08; vmin-=nonNeg?0:pad; vmax+=pad;
   const X=t=>L+(t/tmax)*(w-L-Rr), Y=v=>T+(1-(v-vmin)/(vmax-vmin))*(h-T-B);
   c.font='11px '+font; c.fillStyle=COL.muted; c.strokeStyle='rgba(238,241,232,0.1)'; c.lineWidth=1;
-  const st=niceStep(vmax-vmin);
+  const st=niceStep(vmax-vmin,Math.max(1,Math.min(4,Math.floor((h-T-B)/18))));   // 그래프가 작으면 눈금을 줄임
   for(let v=Math.ceil(vmin/st)*st; v<=vmax; v+=st){const y=Y(v); c.beginPath(); c.moveTo(L,y); c.lineTo(w-Rr,y); c.stroke(); c.textAlign='right'; c.fillText((+v.toFixed(3))+'',L-5,y+4);}
   const ts=niceStep(tmax);
   c.textAlign='center'; for(let t=0;t<=tmax+1e-9;t+=ts){c.fillText((+t.toFixed(2))+'s',X(t),h-8);}
@@ -744,11 +753,13 @@ function plot(canvas,key,title,unit,color){
   else {c.fillStyle=COL.muted; c.fillText('공을 잡거나 발사하면 기록이 시작돼요',L+6,h/2);}
   c.fillStyle=COL.muted; c.fillText(unit,4,15);
 }
+const GMAP={pos:[['sx','수평 이동거리 – t','m',COL.vel],['sy','수직 이동거리 – t','m',COL.grav]],
+            vel:[['vx','수평 속도 vx – t','m/s',COL.vel],['vy','수직 속도 vy – t','m/s',COL.grav]],
+            force:[['fx','수평 알짜힘 크기 – t','N',COL.vel],['fy','수직 알짜힘 크기 – t','N',COL.grav]]};
 function drawGraphs(){
-  const map={pos:[['x','수평 위치 x – t','m',COL.vel],['y','수직 위치 y – t','m',COL.grav]],
-             vel:[['vx','수평 속도 vx – t','m/s',COL.vel],['vy','수직 속도 vy – t','m/s',COL.grav]],
-             force:[['fx','수평 알짜힘 Fx – t','N',COL.vel],['fy','수직 알짜힘 Fy – t','N',COL.grav]]}[gKind];
-  plot($('gX'),...map[0]); plot($('gY'),...map[1]);
+  for(const k in GMAP){ if(!gOn[k]) continue;
+    const [a,b]=document.querySelectorAll(`[data-pair="${k}"] canvas`);
+    plot(a,...GMAP[k][0]); plot(b,...GMAP[k][1]); }
 }
 
 // ---------- 메인 루프 ----------
@@ -798,7 +809,14 @@ $('massSel').onchange=e=>{S.mass=+e.target.value; if(ball.phase==='parked'||ball
 $('slowSel').onchange=e=>{S.slow=+e.target.value;};
 $('dotSel').onchange=e=>{S.dotInt=+e.target.value;};
 [['cTrail','trail'],['cDotV','dotV'],['cDotF','dotF'],['cDotN','dotN'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
-document.querySelectorAll('.graphs [data-g]').forEach(b=>b.onclick=()=>{gKind=b.dataset.g; document.querySelectorAll('.graphs [data-g]').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawGraphs();});
+// 그래프 버튼은 켜고 끄는 방식이라 여러 개를 함께 볼 수 있음 (최소 1개는 켜 둠)
+document.querySelectorAll('.graphs [data-g]').forEach(b=>b.onclick=()=>{
+  const k=b.dataset.g; if(gOn[k]&&Object.values(gOn).filter(Boolean).length===1) return;
+  gOn[k]=!gOn[k]; b.setAttribute('aria-pressed',gOn[k]);
+  document.querySelector(`[data-pair="${k}"]`).hidden=!gOn[k];
+  $('graphList').style.setProperty('--gn',Object.values(gOn).filter(Boolean).length);
+  drawGraphs();
+});
 // 전체화면: 브라우저 전체화면 API가 없으면(아이폰 등) 화면 배치만 바꿈
 const fsEl=document.documentElement;
 function setFs(on){
