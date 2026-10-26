@@ -446,10 +446,12 @@ function draw(){
     ctx.globalAlpha=0.45; ctx.drawImage(video,vr.ox,vr.oy,vr.vw*vr.s,vr.vh*vr.s); ctx.restore();
     ctx.fillStyle='rgba(23,34,31,0.25)'; ctx.fillRect(0,0,W,H);
   }
-  // 격자 (0.5 m)
-  ctx.lineWidth=1; ctx.strokeStyle='rgba(238,241,232,0.08)';
-  for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,floorPy); ctx.stroke();}
-  for(let y=0;y<=WORLD_H;y+=0.5){const p=floorPy-y*ppm; ctx.beginPath(); ctx.moveTo(0,p); ctx.lineTo(W,p); ctx.stroke();}
+  // 격자: 운동이 멈추면 궤적 점에 맞춘 격자, 그 밖에는 0.5 m 격자
+  if(!drawMotionGrid()){
+    ctx.lineWidth=1; ctx.strokeStyle='rgba(238,241,232,0.08)';
+    for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,floorPy); ctx.stroke();}
+    for(let y=0;y<=WORLD_H;y+=0.5){const p=floorPy-y*ppm; ctx.beginPath(); ctx.moveTo(0,p); ctx.lineTo(W,p); ctx.stroke();}
+  }
   // 바닥과 자
   ctx.fillStyle='rgba(238,241,232,0.06)'; ctx.fillRect(0,floorPy,W,H-floorPy);
   ctx.strokeStyle=COL.chalk; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,floorPy); ctx.lineTo(W,floorPy); ctx.stroke();
@@ -517,6 +519,33 @@ function draw(){
   }
   // 상단 라벨
   ctx.fillStyle=COL.chalk; ctx.font='700 22px '+getComputedStyle(document.body).fontFamily; ctx.fillText(motion[0],16,34);
+}
+
+// 운동이 멈추면 궤적 점마다 세로선(수평 위치)과 가로선(수직 위치)을 그려
+// 같은 시간 간격 동안 수평 이동거리는 일정하고 수직 이동거리는 점점 커지는 것을 보여 줌
+function drawMotionGrid(){
+  if(!(ball.phase==='rest'||ball.phase==='parked'||ball.phase==='gone')||trail.length<2) return false;
+  const pts=trail.map(d=>toPx(d.x+R,d.y+R)), [x0,y0]=pts[0];
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  const l=Math.min(...xs)-R*ppm, r=Math.max(...xs)+R*ppm, t=Math.min(...ys)-R*ppm, b=floorPy;
+  const font=getComputedStyle(document.body).fontFamily;
+  ctx.lineWidth=1; ctx.font='11px '+font;
+  // 같은 자리의 선은 한 번만 (위로 던지면 같은 높이를 두 번 지남)
+  const uniq=a=>a.filter((v,i)=>a.findIndex(w=>Math.abs(w-v)<2)===i);
+  // 글자는 출발점 것을 먼저 놓고, 이미 놓은 글자와 가까우면 건너뜀
+  const labels=(a,v0,gap)=>{ const out=[v0]; for(const v of a) if(out.every(w=>Math.abs(w-v)>=gap)) out.push(v); return out; };
+  // 세로선: 수평 이동거리
+  ctx.strokeStyle='rgba(245,211,90,0.35)'; ctx.fillStyle=COL.vel; ctx.textAlign='center';
+  const vx=uniq(xs);
+  for(const px of vx){ ctx.beginPath(); ctx.moveTo(px,t); ctx.lineTo(px,b); ctx.stroke(); }
+  for(const px of labels(vx,x0,34)) ctx.fillText(fmt(Math.abs(px-x0)/ppm),px,t-6);
+  // 가로선: 출발점에서 잰 수직 이동거리
+  ctx.strokeStyle='rgba(255,125,110,0.35)'; ctx.fillStyle=COL.grav; ctx.textAlign='left';
+  const hy=uniq(ys);
+  for(const py of hy){ ctx.beginPath(); ctx.moveTo(l,py); ctx.lineTo(r,py); ctx.stroke(); }
+  for(const py of labels(hy,y0,13)) ctx.fillText(fmt(Math.abs(py-y0)/ppm),r+4,py+4);
+  ctx.fillStyle=COL.muted; ctx.fillText('격자: 궤적 점마다 그린 선 · 숫자는 출발점에서 잰 이동거리 (m)',l,t-20);
+  return true;
 }
 
 // 궤적 점마다 속도·알짜힘 벡터와 수치
