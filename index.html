@@ -86,6 +86,18 @@ select{background:var(--board);color:var(--chalk);border:1px solid var(--line);b
   #stageWrap{flex:none;height:62vh}
   aside{width:100%;border-left:0;border-top:1px solid var(--line)}
 }
+/* 전체화면: 머리말을 숨기고 오른쪽에는 '궤적 점마다 표시'와 그래프만 남김 */
+#fsExit{position:absolute;right:12px;top:52px}
+body.fs header{display:none}
+body.fs aside{width:340px;gap:14px}
+body.fs aside>section:not(.fs-keep){display:none}
+body.fs .graphs .note{display:none}
+body.fs .graphs canvas{height:calc((100vh - 230px)/2);min-height:120px}
+@media (max-width:900px){
+  body.fs #stageWrap{height:58vh}
+  body.fs aside{width:100%}
+  body.fs .graphs canvas{height:150px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -99,11 +111,13 @@ select{background:var(--board);color:var(--chalk);border:1px solid var(--line);b
     <button id="modeExp" aria-pressed="false">실험 모드 (조건 설정)</button>
   </div>
   <button class="btn ghost" id="resetBtn">공 되돌리기</button>
+  <button class="btn ghost" id="fsBtn">전체화면</button>
 </header>
 <main>
   <div id="stageWrap">
     <canvas id="stage"></canvas>
     <div id="status"><span class="dot"></span><span id="statusText">카메라 꺼짐 · 마우스로도 잡을 수 있어요</span></div>
+    <button class="btn ghost" id="fsExit" hidden>전체화면 끝내기 (Esc)</button>
     <div id="camOverlay">
       <div class="card">
         <h2>웹캠으로 손 인식 시작</h2>
@@ -124,7 +138,7 @@ select{background:var(--board);color:var(--chalk);border:1px solid var(--line);b
       <div class="motion" id="motionLabel">받침대 위에 정지<small id="motionSub">공을 잡아 보세요</small></div>
     </section>
 
-    <section>
+    <section class="fs-keep">
       <h3>궤적 점마다 표시</h3>
       <div class="checks">
         <label><input type="checkbox" id="cTrail" checked>궤적 점</label>
@@ -190,7 +204,7 @@ select{background:var(--board);color:var(--chalk);border:1px solid var(--line);b
       <div class="result" id="resultBox"></div>
     </section>
 
-    <section class="graphs">
+    <section class="graphs fs-keep">
       <h3>그래프 (시간 t 기준)</h3>
       <div class="seg" role="group" aria-label="그래프 종류">
         <button data-g="pos" aria-pressed="false">위치</button>
@@ -785,6 +799,22 @@ $('slowSel').onchange=e=>{S.slow=+e.target.value;};
 $('dotSel').onchange=e=>{S.dotInt=+e.target.value;};
 [['cTrail','trail'],['cDotV','dotV'],['cDotF','dotF'],['cDotN','dotN'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
 document.querySelectorAll('.graphs [data-g]').forEach(b=>b.onclick=()=>{gKind=b.dataset.g; document.querySelectorAll('.graphs [data-g]').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawGraphs();});
+// 전체화면: 브라우저 전체화면 API가 없으면(아이폰 등) 화면 배치만 바꿈
+const fsEl=document.documentElement;
+function setFs(on){
+  document.body.classList.toggle('fs',on); $('fsExit').hidden=!on;
+  $('fsBtn').textContent=on?'전체화면 끝내기':'전체화면';
+  drawGraphs();
+}
+async function toggleFs(){
+  const on=!document.body.classList.contains('fs');
+  if(fsEl.requestFullscreen){
+    try{ if(on) await fsEl.requestFullscreen(); else if(document.fullscreenElement) await document.exitFullscreen(); else setFs(false); return; }catch{}
+  }
+  setFs(on);
+}
+document.addEventListener('fullscreenchange',()=>setFs(!!document.fullscreenElement));
+$('fsBtn').onclick=toggleFs; $('fsExit').onclick=toggleFs;
 $('camBtn').onclick=startCam; $('skipBtn').onclick=()=>{$('camOverlay').hidden=true;};
 $('aIn').disabled=true; $('aLab').style.opacity=.4; $('aOut').textContent='0°';
 
