@@ -122,8 +122,8 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
     <div id="camOverlay">
       <div class="card">
         <h2>웹캠으로 손 인식 시작</h2>
-        <p>엄지와 검지를 <b>집거나</b> 주먹을 쥐면 공을 잡아요. 손을 움직이다 <b>펴면</b> 그 순간의 속도로 공이 날아가요. 가만히 펴면 자유낙하예요.</p>
-        <p>카메라 없이 마우스(터치)로 공을 끌어 던져도 같은 분석이 돼요.</p>
+        <p>엄지와 검지를 <b>집거나</b> 주먹을 쥐면 공을 잡아요. 손을 움직이다 <b>펴면</b> 그 순간의 속도로 공이 날아가요. 가만히 펴면 자유낙하예요. 손을 편 채로 공을 <b>툭 치면</b> 굴러가요.</p>
+        <p>카메라 없이 마우스(터치)로 공을 끌어 던져도 같은 분석이 돼요. 버튼을 누르지 않고 마우스로 공을 스치듯 지나가면 툭 치기가 돼요.</p>
         <div class="row">
           <button class="btn" id="camBtn">카메라 켜기</button>
           <button class="btn ghost" id="skipBtn">마우스로 할게요</button>
@@ -143,6 +143,7 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
       <h3>궤적 점마다 표시</h3>
       <div class="checks">
         <label><input type="checkbox" id="cTrail" checked>궤적 점</label>
+        <label><input type="checkbox" id="cPrev" checked>이전 궤적 (비교)</label>
         <label><input type="checkbox" id="cDotV" checked>속도 (vx, vy)</label>
         <label><input type="checkbox" id="cDotF">알짜힘 (Fx, Fy)</label>
         <label><input type="checkbox" id="cDotN">수치 표시</label>
@@ -248,7 +249,7 @@ const cv = $('stage'), ctx = cv.getContext('2d');
 const S = {
   mode:'free', expKind:'horizontal', h:1.5, v0:3, angle:45, mass:0.5, slow:1,
   dotInt:0.1,
-  show:{trail:true, dotV:true, dotF:false, dotN:false, proj:true, vel:true, force:true, video:true, hand:true}
+  show:{trail:true, prev:true, dotV:true, dotF:false, dotN:false, proj:true, vel:true, force:true, video:true, hand:true}
 };
 const css = getComputedStyle(document.documentElement);
 const C = k => css.getPropertyValue(k).trim();
@@ -275,6 +276,7 @@ const SHELF_W = 1.2;                 // 실험 모드 선반 너비 (m)
 let simT = 0, goneAt = 0;
 let rec = null;                      // 그래프 기록 (공을 놓은 순간부터)
 let trail = [], nextDot = 0;
+let prev = null;                     // 바로 이전 운동 {trail, data} — 지금 운동과 비교용
 let lastResult = null;
 const target = {x:0,y:0,vx:0,vy:0,src:null,lastSeen:0};
 const ballHist = [];                 // 놓을 때 속도 계산용 (실제 시간)
@@ -286,7 +288,7 @@ function restOn(surf, msg){
   F.hx=F.hy=0; F.ny=S.mass*G;
   if(msg) motion=msg;
 }
-const MSG_SHELF=['선반 위에 놓여 있어요','발사를 누르거나, 손으로 밀어서 떨어뜨려 보세요'];
+const MSG_SHELF=['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요'];
 function park(){
   if(S.mode==='free'){
     stand = {x:Wm/2, y:1.2};
@@ -337,12 +339,31 @@ function release(){
   launched(vx,vy);
 }
 function launched(vx,vy,label){
+  if(trail.length>1) prev={trail, data:rec?rec.data:[]};
   startRec();
   rec.start = {x:ball.x,y:ball.y,vx,vy};
   rec.maxY = ball.y;
   trail=[dotNow()]; nextDot=simT+S.dotInt;
   motion = label || classify(vx,vy);
   pushRec();
+}
+// 펼친 손이나 마우스로 공을 툭 치면 그 수평 속도로 굴러감 (선반 끝을 지나면 수평 던지기)
+let lastHit=0;
+function hit(vx){
+  const now=performance.now();
+  if(now-lastHit<300||Math.abs(vx)<0.4) return;
+  vx=Math.max(-6,Math.min(6,vx));
+  if(ball.phase==='rest'){
+    if(Math.abs(vx)<=Math.abs(ball.vx)+0.2&&Math.sign(vx)===Math.sign(ball.vx)) return;
+    ball.vx=vx; lastHit=now;
+    motion= ball.surf>0 ? ['굴러가는 중','선반 끝을 지나면 수평 방향으로 던져져요'] : ['바닥에서 굴러가는 중','공을 다시 잡아 던져 보세요'];
+    setStatus('ok','툭 쳤어요!');
+  } else if(ball.phase==='parked'){
+    // 자유 모드 받침대: 치면 바로 수평 방향으로 떨어짐
+    lastHit=now; ball.vx=vx; ball.vy=0; ball.phase='flying'; F.ny=0;
+    launched(vx,0,['받침대에서 쳐서 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']);
+    setStatus('ok','툭 쳤어요!');
+  }
 }
 function grab(src){
   // 잡고 움직이는 동안에는 그래프를 기록하지 않아요 (이전 운동 그래프와 궤적은 그대로 둠)
@@ -354,7 +375,7 @@ function finish(kind){
   const st=rec.start, T=simT-rec.t0;
   if(kind==='shelf'&&T<0.08) return;
   const res={kind, T, dx:Math.abs(ball.x-st.x), maxH:rec.maxY, vxL:ball.vx, vyL:ball.vy, start:st, label:motion[0]};
-  if(S.mode==='exp'&&rec.fromLaunch) res.theory = theory();
+  if(S.mode==='exp'&&(rec.fromLaunch||rec.rolled)) res.theory = theoryFrom(st.y,st.vx,st.vy);
   lastResult=res; showResult();
 }
 
@@ -401,12 +422,14 @@ function step(dt){
     }
   } else if(ball.phase==='rest'){
     F.hx=F.hy=0; F.ny=m*G; ball.vy=0; ball.y=ball.surf;
-    ball.vx*=Math.exp(-4*dt); if(Math.abs(ball.vx)<0.01) ball.vx=0;
+    // 선반 위에서는 잘 굴러가고(마찰 작음), 바닥에서는 금방 멈춤
+    ball.vx*=Math.exp(-(ball.surf>0?0.3:4)*dt);
+    if(Math.abs(ball.vx)<0.01){ if(ball.vx!==0&&motion[0].includes('굴러가는 중')) motion=ball.surf>0?MSG_SHELF:['바닥에 멈췄어요','공을 다시 잡아 던져 보세요']; ball.vx=0; }
     ball.x+=ball.vx*dt;
     if(ball.surf>0){
       if(!hasShelf()||Math.abs(ball.surf-S.h)>1e-6){ ball.surf=S.h; }
       if(!onShelfX(ball.x)){
-        if(ball.x+R>SHELF_W){ ball.phase='flying'; F.ny=0; launched(ball.vx,0,['선반에서 굴러 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']); }
+        if(ball.x+R>SHELF_W){ ball.phase='flying'; F.ny=0; launched(ball.vx,0,['선반에서 굴러 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']); rec.rolled=true; }
         else { ball.x=-R; ball.vx=0; }
       }
     } else {
@@ -481,6 +504,15 @@ function draw(){
     ctx.save(); ctx.translate(70,floorPy-ppm*0.3); ctx.rotate(-Math.PI/2); ctx.fillText('수직 이동거리 (간격이 점점 커짐)',0,0); ctx.restore();
   }
   // 궤적 점
+  // 이전 궤적: 파란 점선 원
+  if(S.show.prev&&prev){
+    ctx.strokeStyle='rgba(108,200,255,0.6)'; ctx.fillStyle='rgba(108,200,255,0.8)'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+    for(const d of prev.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
+    ctx.setLineDash([]);
+    for(const d of prev.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();}
+    const [qx,qy]=toPx(prev.trail[0].x+R,prev.trail[0].y+R);
+    ctx.font='12px '+getComputedStyle(document.body).fontFamily; ctx.textAlign='right'; ctx.fillText('이전 궤적',qx-R*ppm-4,qy+4); ctx.textAlign='left';
+  }
   if(S.show.trail){
     ctx.strokeStyle='rgba(238,241,232,0.7)'; ctx.lineWidth=1.5;
     for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
@@ -502,7 +534,7 @@ function draw(){
         arrow(bx,by,dx,dy,COL.hand,5,'F손');
       }
     }
-    if(S.show.vel&&(ball.phase==='flying'||ball.phase==='held')){
+    if(S.show.vel&&(ball.phase==='flying'||ball.phase==='held'||(ball.phase==='rest'&&Math.abs(ball.vx)>0.05))){
       const vs=0.16*ppm; ctx.globalAlpha=0.55;
       arrow(bx,by,ball.vx*vs,0,COL.vel,3,'vx'); arrow(bx,by,0,-ball.vy*vs,COL.vel,3,'vy');
       ctx.globalAlpha=1; arrow(bx,by,ball.vx*vs,-ball.vy*vs,COL.vel,4,'v');
@@ -642,10 +674,13 @@ function processHands(now){
     const curl=(d(8,0)+d(12,0)+d(16,0)+d(20,0))/(4*size);
     const prev=handState.get(i)?.closed||false;
     const closed = prev ? (pinch<0.55||curl<1.25) : (pinch<0.32||curl<1.0);
-    handState.set(i,{closed});
     const p = pinch<0.6 ? {x:(lm[4].x+lm[8].x)/2,y:(lm[4].y+lm[8].y)/2} : lm[9];
     const [px,py]=lmToPx(p,vr);
-    hands.push({lm,closed,px,py});
+    // 손바닥 중심의 수평 속도 (m/s) — 툭 치기에 사용
+    const [cx]=lmToPx(lm[9],vr), st=handState.get(i);
+    const hvx = st&&st.cx!==undefined&&now>st.t ? ((cx-st.cx)/ppm)/((now-st.t)/1000) : 0;
+    handState.set(i,{closed,cx,t:now});
+    hands.push({lm,closed,px,py,hvx});
   });
   for(let i=hands.length;i<4;i++) handState.delete(i);
 
@@ -662,6 +697,8 @@ function processHands(now){
     }
   } else if(ball.phase!=='held'){
     for(const h of hands){
+      // 펼친 손가락이나 손바닥이 공에 닿으며 지나가면 툭 치기
+      if(!h.closed&&(ball.phase==='rest'||ball.phase==='parked')&&[8,12,9].some(j=>{const [qx,qy]=lmToPx(h.lm[j],vr); return Math.hypot(qx-bx,qy-by)<R2*1.6;})){ hit(h.hvx); }
       if(h.closed&&Math.hypot(h.px-bx,h.py-by)<R2*2.6&&ball.phase!=='gone'){
         handHist=[]; updateTarget(h.px,h.py,now,true); grab('hand'); target.lastSeen=now; setStatus('grab','잡았어요 · 손을 펴면 놓아요'); break;
       }
@@ -687,8 +724,16 @@ cv.addEventListener('pointerdown',e=>{
     cv.setPointerCapture(e.pointerId); updateTarget(px,py,performance.now(),true); grab('mouse'); cv.style.cursor='grabbing';
   }
 });
+let lastPtr=null;
 cv.addEventListener('pointermove',e=>{
-  if(target.src!=='mouse') return;
+  if(target.src!=='mouse'){
+    const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top, now=performance.now();
+    if(lastPtr&&now>lastPtr.t&&(ball.phase==='rest'||ball.phase==='parked')){
+      const [bx,by]=toPx(ball.x+R,ball.y+R);
+      if(Math.hypot(px-bx,py-by)<R*ppm*1.3) hit(((px-lastPtr.x)/ppm)/((now-lastPtr.t)/1000));
+    }
+    lastPtr={x:px,t:now}; return;
+  }
   const r=cv.getBoundingClientRect(); updateTarget(e.clientX-r.left,e.clientY-r.top,performance.now());
 });
 const up=()=>{ if(target.src==='mouse'&&ball.phase==='held'){ release(); } cv.style.cursor='grab'; };
@@ -697,7 +742,10 @@ cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
 // ---------- 실험 모드 ----------
 function theory(){
   const h=S.h, k=S.expKind; let v0=k==='drop'?0:S.v0, th=k==='oblique'?S.angle*Math.PI/180:0;
-  const vx=v0*Math.cos(th), vy=v0*Math.sin(th);
+  return theoryFrom(h, v0*Math.cos(th), v0*Math.sin(th));
+}
+// 높이 h에서 (vx, vy)로 출발해 바닥에 닿을 때까지
+function theoryFrom(h,vx,vy){
   const T=(vy+Math.sqrt(vy*vy+2*G*h))/G;
   return {T, R:vx*T, Hmax:h+(vy>0?vy*vy/(2*G):0), vx, vy, vyL:vy-G*T};
 }
@@ -763,9 +811,9 @@ function plot(canvas,key,title,unit,color){
   c.clearRect(0,0,w,h);
   const font=getComputedStyle(document.body).fontFamily;
   c.fillStyle=COL.chalk; c.font='600 13px '+font; c.fillText(title,L,15);
-  const data=rec?rec.data:[];
+  const data=rec?rec.data:[], pd=S.show.prev&&prev?prev.data:[];
   let tmax=1, vmin=-1, vmax=1;
-  if(data.length){tmax=Math.max(0.5,data[data.length-1].t); for(const p of data){vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
+  if(data.length||pd.length){tmax=0.5; for(const p of [...data,...pd]){tmax=Math.max(tmax,p.t); vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
   const nonNeg=['sx','sy','vx','vy','fx','fy'].includes(key);   // 이동거리, 속도·힘 크기는 0 이상
   if(nonNeg) vmin=0;
   const pad=(vmax-vmin)*0.08; vmin-=nonNeg?0:pad; vmax+=pad;
@@ -777,6 +825,9 @@ function plot(canvas,key,title,unit,color){
   c.textAlign='center'; for(let t=0;t<=tmax+1e-9;t+=ts){c.fillText((+t.toFixed(2))+'s',X(t),h-8);}
   c.textAlign='left';
   if(vmin<0&&vmax>0){c.strokeStyle='rgba(238,241,232,0.35)'; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(w-Rr,Y(0)); c.stroke();}
+  if(pd.length>1){ c.strokeStyle=color; c.globalAlpha=0.5; c.lineWidth=1.8; c.setLineDash([5,4]); c.beginPath();
+    pd.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke(); c.setLineDash([]); c.globalAlpha=1;
+    c.fillStyle=COL.muted; c.textAlign='right'; c.fillText('점선: 이전 운동',w-Rr,15); c.textAlign='left'; }
   if(data.length>1){c.strokeStyle=color; c.lineWidth=2.2; c.beginPath(); data.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke();
     const p=data[data.length-1]; c.fillStyle=color; c.beginPath(); c.arc(X(p.t),Y(p[key]),3.5,0,7); c.fill();}
   else {c.fillStyle=COL.muted; c.fillText('공을 잡거나 발사하면 기록이 시작돼요',L+6,h/2);}
@@ -816,12 +867,12 @@ function frame(now){
 // ---------- UI 연결 ----------
 function setMode(m){
   S.mode=m; $('modeFree').setAttribute('aria-pressed',m==='free'); $('modeExp').setAttribute('aria-pressed',m==='exp');
-  $('expPanel').hidden = m!=='exp'; rec=null; trail=[]; lastResult=null; showResult(); park();
-  motion = m==='exp'?['선반 위에 놓여 있어요','발사를 누르거나 손으로 잡아 던져 보세요. 잡아서 선반 위에 다시 올려놓을 수도 있어요']:['받침대 위에 정지','공을 잡아 보세요'];
+  $('expPanel').hidden = m!=='exp'; rec=null; trail=[]; prev=null; lastResult=null; showResult(); park();
+  motion = m==='exp'?['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요. 잡아서 던지거나 선반 위에 다시 올려놓을 수도 있어요']:['받침대 위에 정지','공을 잡아 보세요'];
   updateTheoryLine();
 }
 $('modeFree').onclick=()=>setMode('free'); $('modeExp').onclick=()=>setMode('exp');
-$('resetBtn').onclick=()=>{ rec=null; trail=[]; target.src=null; park(); motion=S.mode==='exp'?MSG_SHELF:['받침대 위에 정지','공을 잡아 보세요']; };
+$('resetBtn').onclick=()=>{ rec=null; trail=[]; prev=null; target.src=null; park(); motion=S.mode==='exp'?MSG_SHELF:['받침대 위에 정지','공을 잡아 보세요']; };
 document.querySelectorAll('#expPanel [data-k]').forEach(b=>b.onclick=()=>{
   S.expKind=b.dataset.k; document.querySelectorAll('#expPanel [data-k]').forEach(x=>x.setAttribute('aria-pressed',x===b));
   const drop=S.expKind==='drop', obl=S.expKind==='oblique';
@@ -837,7 +888,7 @@ $('launchBtn').onclick=launch;
 $('massSel').onchange=e=>{S.mass=+e.target.value; if(ball.phase==='parked'||ball.phase==='rest'){F.ny=S.mass*G;Fs.ny=F.ny;}};
 $('slowSel').onchange=e=>{S.slow=+e.target.value;};
 $('dotSel').onchange=e=>{S.dotInt=+e.target.value;};
-[['cTrail','trail'],['cDotV','dotV'],['cDotF','dotF'],['cDotN','dotN'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
+[['cTrail','trail'],['cPrev','prev'],['cDotV','dotV'],['cDotF','dotF'],['cDotN','dotN'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
 // 그래프 버튼은 켜고 끄는 방식이라 여러 개를 함께 볼 수 있음 (최소 1개는 켜 둠)
 document.querySelectorAll('.graphs [data-g]').forEach(b=>b.onclick=()=>{
   const k=b.dataset.g; if(gOn[k]&&Object.values(gOn).filter(Boolean).length===1) return;
