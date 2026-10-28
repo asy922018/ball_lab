@@ -51,6 +51,9 @@ main{flex:1;display:flex;min-height:0}
 aside{width:400px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:18px}
 section h3{margin:0 0 8px;font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
 .motion{font-size:20px;font-weight:700}
+.motion .bd{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:middle}
+#motionList{display:flex;flex-direction:column;gap:8px}
+#motionList.two .motion{font-size:17px}
 .motion small{display:block;font-size:13px;color:var(--muted);font-weight:400;margin-top:2px}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}
@@ -122,7 +125,7 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
     <div id="camOverlay">
       <div class="card">
         <h2>웹캠으로 손 인식 시작</h2>
-        <p>엄지와 검지를 <b>집거나</b> 주먹을 쥐면 공을 잡아요. 손을 움직이다 <b>펴면</b> 그 순간의 속도로 공이 날아가요. 가만히 펴면 자유낙하예요. 손을 편 채로 공을 <b>툭 치면</b> 굴러가요.</p>
+        <p>엄지와 검지를 <b>집거나</b> 주먹을 쥐면 공을 잡아요. 손을 움직이다 <b>펴면</b> 그 순간의 속도로 공이 날아가요. 가만히 펴면 자유낙하예요. 손을 편 채로 공을 <b>툭 치면</b> 굴러가요. 공이 2개라 양손으로 하나씩 잡을 수 있어요.</p>
         <p>카메라 없이 마우스(터치)로 공을 끌어 던져도 같은 분석이 돼요. 버튼을 누르지 않고 마우스로 공을 스치듯 지나가면 툭 치기가 돼요.</p>
         <div class="row">
           <button class="btn" id="camBtn">카메라 켜기</button>
@@ -136,7 +139,22 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
   <aside>
     <section>
       <h3>현재 운동</h3>
-      <div class="motion" id="motionLabel">받침대 위에 정지<small id="motionSub">공을 잡아 보세요</small></div>
+      <div id="motionList"><div class="motion">받침대 위에 정지<small>공을 잡아 보세요</small></div></div>
+    </section>
+
+    <section class="graphs fs-keep">
+      <h3>그래프 (시간 t 기준)</h3>
+      <div class="seg" role="group" aria-label="그래프 종류 (여러 개 선택 가능)">
+        <button data-g="pos" aria-pressed="false">이동거리</button>
+        <button data-g="vel" aria-pressed="true">속도</button>
+        <button data-g="force" aria-pressed="false">알짜힘</button>
+      </div>
+      <div id="graphList">
+        <div class="pair" data-pair="pos" hidden><canvas></canvas><canvas></canvas></div>
+        <div class="pair" data-pair="vel"><canvas></canvas><canvas></canvas></div>
+        <div class="pair" data-pair="force" hidden><canvas></canvas><canvas></canvas></div>
+      </div>
+      <p class="note">버튼을 여러 개 눌러 그래프를 함께 볼 수 있어요. 공을 놓은 순간을 t = 0으로 기록하고, 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 수평 속도는 일정하고, 수직 속도는 올라갈 때 줄고 내려올 때 늘어나요 (1초에 9.8 m/s씩).</p>
     </section>
 
     <section class="fs-keep">
@@ -170,10 +188,20 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
         <button class="btn" id="launchBtn">발사</button>
         <span class="note" id="theoryLine"></span>
       </div>
+      <label class="note" id="pairRow" style="display:flex;gap:6px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="cPair" checked>공 2도 함께 발사해서 비교 (자유낙하, 자유낙하 실험이면 수평 던지기)</label>
+    </section>
+
+    <section id="selSec">
+      <h3>표에 보여 줄 공</h3>
+      <div class="seg" role="group" aria-label="표에 보여 줄 공">
+        <button data-s="0" aria-pressed="true">공 1</button>
+        <button data-s="1" aria-pressed="false">공 2</button>
+      </div>
+      <p class="note" style="margin:6px 0 0">공을 잡거나 치면 그 공으로 바뀌어요.</p>
     </section>
 
     <section>
-      <h3>공에 작용하는 힘 (질량 <span id="mLab">0.5</span> kg)</h3>
+      <h3>공에 작용하는 힘 (<span id="mLab">질량 0.5 kg</span>)</h3>
       <table>
         <thead><tr><th></th><th>수평 크기 (N)</th><th>수직 크기 (N)</th></tr></thead>
         <tbody>
@@ -207,26 +235,13 @@ body.fs .graphs canvas{height:calc((100vh - 250px - (var(--gn) - 1)*8px)/(2*var(
       <div class="result" id="resultBox"></div>
     </section>
 
-    <section class="graphs fs-keep">
-      <h3>그래프 (시간 t 기준)</h3>
-      <div class="seg" role="group" aria-label="그래프 종류 (여러 개 선택 가능)">
-        <button data-g="pos" aria-pressed="false">이동거리</button>
-        <button data-g="vel" aria-pressed="true">속도</button>
-        <button data-g="force" aria-pressed="false">알짜힘</button>
-      </div>
-      <div id="graphList">
-        <div class="pair" data-pair="pos" hidden><canvas></canvas><canvas></canvas></div>
-        <div class="pair" data-pair="vel"><canvas></canvas><canvas></canvas></div>
-        <div class="pair" data-pair="force" hidden><canvas></canvas><canvas></canvas></div>
-      </div>
-      <p class="note">버튼을 여러 개 눌러 그래프를 함께 볼 수 있어요. 공을 놓은 순간을 t = 0으로 기록하고, 손으로 잡고 움직이는 동안은 기록하지 않아요. 날아가는 동안 수평 속도는 일정하고, 수직 속도는 올라갈 때 줄고 내려올 때 늘어나요 (1초에 9.8 m/s씩).</p>
-    </section>
-
     <section>
       <h3>설정</h3>
       <div class="row">
         <label for="massSel" class="note">질량</label>
         <select id="massSel"><option value="0.1">0.1 kg</option><option value="0.5" selected>0.5 kg</option><option value="1">1 kg</option><option value="2">2 kg</option></select>
+        <label for="nSel" class="note">공 개수</label>
+        <select id="nSel"><option value="1">1개</option><option value="2" selected>2개</option></select>
         <label for="slowSel" class="note">재생 속도</label>
         <select id="slowSel"><option value="1">실제 속도</option><option value="0.5">1/2 느리게</option><option value="0.25">1/4 느리게</option></select>
       </div>
@@ -247,7 +262,7 @@ const G = 9.8, R = 0.12, WORLD_H = 4.0;
 const $ = id => document.getElementById(id);
 const cv = $('stage'), ctx = cv.getContext('2d');
 const S = {
-  mode:'free', expKind:'horizontal', h:1.5, v0:3, angle:45, mass:0.5, slow:1,
+  mode:'free', expKind:'horizontal', h:1.5, v0:3, angle:45, mass:0.5, slow:1, n:2, pair:true,
   dotInt:0.1,
   show:{trail:true, prev:true, dotV:true, dotF:false, dotN:false, proj:true, vel:true, force:true, video:true, hand:true}
 };
@@ -262,55 +277,68 @@ function resize(){
   W=r.width; H=r.height; cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
   floorPy = H-44; ppm = (floorPy-16)/WORLD_H; Wm = W/ppm;
 }
-new ResizeObserver(()=>{resize(); if(ball.phase==='parked') park();}).observe(cv);
+new ResizeObserver(()=>{resize(); for(const b of act()) if(b.phase==='parked') park(b);}).observe(cv);
 const toPx = (x,y) => [x*ppm, floorPy - y*ppm];           // y = 공 아랫면 높이
 const toWorld = (px,py) => [px/ppm, (floorPy-py)/ppm];
 
 // ---------- 공 상태 ----------
-// phase: parked(자유 모드 받침대) | rest(바닥·선반 위, ball.surf = 표면 높이) | held | flying | gone
-const ball = {x:0,y:0,vx:0,vy:0,phase:'parked',surf:0};
-const F = {hx:0,hy:0,ny:0};          // 손의 힘, 수직항력
-const Fs = {hx:0,hy:0,ny:0};         // 표시용(부드럽게)
-let stand = {x:0,y:1.2};             // 받침대(자유 모드)
-const SHELF_W = 1.2;                 // 실험 모드 선반 너비 (m)
-let simT = 0, goneAt = 0;
-let rec = null;                      // 그래프 기록 (공을 놓은 순간부터)
-let trail = [], nextDot = 0;
-let prev = null;                     // 바로 이전 운동 {trail, data} — 지금 운동과 비교용
-let lastResult = null;
-const target = {x:0,y:0,vx:0,vy:0,src:null,lastSeen:0};
-const ballHist = [];                 // 놓을 때 속도 계산용 (실제 시간)
+// phase: parked(자유 모드 받침대) | rest(바닥·선반 위, b.surf = 표면 높이) | held | flying | gone
+// 공마다 위치·힘·기록·궤적을 따로 가짐 (양손으로 하나씩 실험)
+const BALL=[{c0:'#fff6e0',c1:'#f0a24a',main:'#f0a24a',line:'rgba(238,241,232,0.7)',dot:'#eef1e8'},
+            {c0:'#e6fbff',c1:'#3fb3d8',main:'#4cc3e6',line:'rgba(90,200,235,0.85)',dot:'#8fdcf2'}];
+const MSG_STAND=['받침대 위에 정지','공을 잡아 보세요'];
+const MSG_SHELF=['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요'];
+function makeBall(i){
+  return {i, x:0,y:0,vx:0,vy:0, phase:'parked', surf:0,
+    F:{hx:0,hy:0,ny:0},            // 손의 힘, 수직항력
+    Fs:{hx:0,hy:0,ny:0},           // 표시용(부드럽게)
+    stand:{x:0,y:1.2}, goneAt:0,
+    rec:null,                      // 그래프 기록 (공을 놓은 순간부터)
+    trail:[], nextDot:0,
+    prev:null,                     // 바로 이전 운동 {trail, data} — 지금 운동과 비교용
+    lastResult:null, motion:MSG_STAND,
+    tg:{x:0,y:0,vx:0,vy:0,src:null,lastSeen:0,hist:[]},   // 손·마우스가 끄는 목표 위치
+    hist:[],                       // 놓을 때 속도 계산용 (실제 시간)
+    lastHit:0};
+}
+const balls=[makeBall(0),makeBall(1)];
+const act=()=>balls.slice(0,S.n);          // 지금 쓰는 공들
+let sel=0;                                  // 표·수치에 보여 줄 공
+const selBall=()=>balls[Math.min(sel,S.n-1)];
+const SHELF_W = 1.2;                        // 실험 모드 선반 너비 (m)
+let simT = 0;
 
 const hasShelf = () => S.mode==='exp' && S.h>0;
 const onShelfX = x => x+R >= 0 && x+R <= SHELF_W;   // 공 중심이 선반 위에 있는지
-function restOn(surf, msg){
-  ball.phase='rest'; ball.surf=surf; ball.y=surf; ball.vy=0;
-  F.hx=F.hy=0; F.ny=S.mass*G;
-  if(msg) motion=msg;
+function restOn(b, surf, msg){
+  b.phase='rest'; b.surf=surf; b.y=surf; b.vy=0;
+  b.F.hx=b.F.hy=0; b.F.ny=S.mass*G;
+  if(msg) b.motion=msg;
 }
-const MSG_SHELF=['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요'];
-function park(){
+function park(b){
+  b.vx=0; b.vy=0; b.tg.src=null;
   if(S.mode==='free'){
-    stand = {x:Wm/2, y:1.2};
-    Object.assign(ball,{x:stand.x,y:stand.y,vx:0,vy:0,phase:'parked'});
-    F.hx=F.hy=0; F.ny = S.mass*G;
+    b.stand = {x: S.n===1 ? Wm/2 : Wm*(b.i?0.64:0.36), y:1.2};
+    Object.assign(b,{x:b.stand.x,y:b.stand.y,phase:'parked'});
+    b.F.hx=b.F.hy=0; b.F.ny = S.mass*G; b.motion=MSG_STAND;
   } else {
-    Object.assign(ball,{x:SHELF_W-2*R-0.02,vx:0,vy:0});
-    restOn(Math.max(0,S.h));
+    // 선반 위: 공 1은 모서리 쪽, 공 2는 그 뒤
+    b.x = b.i ? SHELF_W-4*R-0.12 : SHELF_W-2*R-0.02;
+    restOn(b, Math.max(0,S.h), S.h>0?MSG_SHELF:['바닥에 놓여 있어요','발사를 누르거나 공을 잡아 던져 보세요']);
   }
 }
+function clearBall(b){ b.rec=null; b.trail=[]; b.prev=null; b.lastResult=null; park(b); b.Fs.ny=b.F.ny; }
 
-function startRec(){ rec = {t0:simT, rel:0, data:[], sx:0, sy:0}; }
-function pushRec(){
-  if(!rec) return;
+function startRec(b){ b.rec = {t0:simT, data:[], sx:0, sy:0}; }
+function pushRec(b){
+  if(!b.rec) return;
   const m=S.mass;
-  const fx = Math.abs(F.hx), fy = Math.abs(F.hy + F.ny - m*G);
-  rec.data.push({t:simT-rec.t0,sx:rec.sx,sy:rec.sy,vx:Math.abs(ball.vx),vy:Math.abs(ball.vy),fx,fy});
-  if(rec.data.length>4000) rec.data.shift();
+  const fx = Math.abs(b.F.hx), fy = Math.abs(b.F.hy + b.F.ny - m*G);
+  b.rec.data.push({t:simT-b.rec.t0,sx:b.rec.sx,sy:b.rec.sy,vx:Math.abs(b.vx),vy:Math.abs(b.vy),fx,fy});
+  if(b.rec.data.length>4000) b.rec.data.shift();
 }
-function dotNow(){
-  const m=S.mass;
-  return {x:ball.x,y:ball.y,vx:ball.vx,vy:ball.vy,fx:0,fy:-m*G,t:simT-(rec?rec.t0:simT)};
+function dotNow(b){
+  return {x:b.x,y:b.y,vx:b.vx,vy:b.vy,fx:0,fy:-S.mass*G,t:simT-(b.rec?b.rec.t0:simT)};
 }
 
 function classify(vx,vy){
@@ -320,123 +348,121 @@ function classify(vx,vy){
   if(Math.abs(vx)<0.2*s) return vy>0?['연직 위로 던지기','올라가며 느려지다 최고점에서 vy = 0']:['연직 아래로 던지기','처음부터 아래로 속도를 가지고 가속돼요'];
   return vy>0?['비스듬히 위로 던지기 (포물선)','수평 등속 + 수직 등가속도 → 포물선']:['비스듬히 아래로 던지기','수평 등속 + 수직 등가속도'];
 }
-let motion = ['받침대 위에 정지','공을 잡아 보세요'];
 
-function release(){
+function release(b){
   // 손을 펴는 동작이 인식되기까지 생기는 지연을 줄이려고, 최근 0.12초 중 가장 빠른 속도를 사용
-  const now=performance.now(); let best={vx:ball.vx,vy:ball.vy}, bs=-1;
-  for(const h of ballHist){ if(now-h.t<=120){ const s=Math.hypot(h.vx,h.vy); if(s>bs){bs=s;best=h;} } }
+  const now=performance.now(); let best={vx:b.vx,vy:b.vy}, bs=-1;
+  for(const h of b.hist){ if(now-h.t<=120){ const s=Math.hypot(h.vx,h.vy); if(s>bs){bs=s;best=h;} } }
   let {vx,vy}=best; const s=Math.hypot(vx,vy);
-  target.src=null; F.hx=F.hy=0; F.ny=0;
+  b.tg.src=null; b.F.hx=b.F.hy=0; b.F.ny=0;
   // 천천히 놓았고 선반(또는 바닥) 바로 위면 그 자리에 올려놓기
   if(s<0.6){
-    if(hasShelf() && onShelfX(ball.x) && Math.abs(ball.y-S.h)<0.2){ ball.vx=0; restOn(S.h,MSG_SHELF); return; }
-    if(ball.y<0.12){ ball.vx=0; restOn(0,['바닥에 놓여 있어요','공을 다시 잡아 던져 보세요']); return; }
+    if(hasShelf() && onShelfX(b.x) && Math.abs(b.y-S.h)<0.2){ b.vx=0; restOn(b,S.h,MSG_SHELF); return; }
+    if(b.y<0.12){ b.vx=0; restOn(b,0,['바닥에 놓여 있어요','공을 다시 잡아 던져 보세요']); return; }
   }
   if(s<0.35){vx=0;vy=0;}
   if(s>12){vx*=12/s;vy*=12/s;}
-  ball.vx=vx; ball.vy=vy; ball.phase='flying';
-  launched(vx,vy);
+  b.vx=vx; b.vy=vy; b.phase='flying';
+  launched(b,vx,vy);
 }
-function launched(vx,vy,label){
-  if(trail.length>1) prev={trail, data:rec?rec.data:[]};
-  startRec();
-  rec.start = {x:ball.x,y:ball.y,vx,vy};
-  rec.maxY = ball.y;
-  trail=[dotNow()]; nextDot=simT+S.dotInt;
-  motion = label || classify(vx,vy);
-  pushRec();
+function launched(b,vx,vy,label){
+  if(b.trail.length>1) b.prev={trail:b.trail, data:b.rec?b.rec.data:[]};
+  startRec(b);
+  b.rec.start = {x:b.x,y:b.y,vx,vy};
+  b.rec.maxY = b.y;
+  b.trail=[dotNow(b)]; b.nextDot=simT+S.dotInt;
+  b.motion = label || classify(vx,vy);
+  pushRec(b);
 }
 // 펼친 손이나 마우스로 공을 툭 치면 그 수평 속도로 굴러감 (선반 끝을 지나면 수평 던지기)
-let lastHit=0;
-function hit(vx){
+function hit(b,vx){
   const now=performance.now();
-  if(now-lastHit<300||Math.abs(vx)<0.4) return;
+  if(now-b.lastHit<300||Math.abs(vx)<0.4) return;
   vx=Math.max(-6,Math.min(6,vx));
-  if(ball.phase==='rest'){
-    if(Math.abs(vx)<=Math.abs(ball.vx)+0.2&&Math.sign(vx)===Math.sign(ball.vx)) return;
-    ball.vx=vx; lastHit=now;
-    motion= ball.surf>0 ? ['굴러가는 중','선반 끝을 지나면 수평 방향으로 던져져요'] : ['바닥에서 굴러가는 중','공을 다시 잡아 던져 보세요'];
+  if(b.phase==='rest'){
+    if(Math.abs(vx)<=Math.abs(b.vx)+0.2&&Math.sign(vx)===Math.sign(b.vx)) return;
+    b.vx=vx; b.lastHit=now; sel=b.i;
+    b.motion= b.surf>0 ? ['굴러가는 중','선반 끝을 지나면 수평 방향으로 던져져요'] : ['바닥에서 굴러가는 중','공을 다시 잡아 던져 보세요'];
     setStatus('ok','툭 쳤어요!');
-  } else if(ball.phase==='parked'){
+  } else if(b.phase==='parked'){
     // 자유 모드 받침대: 치면 바로 수평 방향으로 떨어짐
-    lastHit=now; ball.vx=vx; ball.vy=0; ball.phase='flying'; F.ny=0;
-    launched(vx,0,['받침대에서 쳐서 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']);
+    b.lastHit=now; sel=b.i; b.vx=vx; b.vy=0; b.phase='flying'; b.F.ny=0;
+    launched(b,vx,0,['받침대에서 쳐서 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']);
     setStatus('ok','툭 쳤어요!');
   }
 }
-function grab(src){
+function grab(b,src){
   // 잡고 움직이는 동안에는 그래프를 기록하지 않아요 (이전 운동 그래프와 궤적은 그대로 둠)
-  ball.phase='held'; target.src=src; ballHist.length=0;
-  motion=['손으로 잡고 있어요', S.mode==='exp'?'선반 위에서 손을 펴면 올려놓을 수 있어요':'손이 공에 힘을 주어 움직여요'];
+  b.phase='held'; b.tg.src=src; b.hist.length=0; sel=b.i;
+  b.motion=['손으로 잡고 있어요', S.mode==='exp'?'선반 위에서 손을 펴면 올려놓을 수 있어요':'손이 공에 힘을 주어 움직여요'];
 }
-function finish(kind){
-  if(!rec||!rec.start) return;
+function finish(b,kind){
+  const rec=b.rec; if(!rec||!rec.start) return;
   const st=rec.start, T=simT-rec.t0;
   if(kind==='shelf'&&T<0.08) return;
-  const res={kind, T, dx:Math.abs(ball.x-st.x), maxH:rec.maxY, vxL:ball.vx, vyL:ball.vy, start:st, label:motion[0]};
+  const res={kind, T, dx:Math.abs(b.x-st.x), maxH:rec.maxY, vxL:b.vx, vyL:b.vy, start:st, label:b.motion[0]};
   if(S.mode==='exp'&&(rec.fromLaunch||rec.rolled)) res.theory = theoryFrom(st.y,st.vx,st.vy);
-  lastResult=res; showResult();
+  b.lastResult=res; showResult();
 }
 
 // ---------- 물리 (고정 시간 간격) ----------
 const OMEGA=26;
-function step(dt){
-  const m=S.mass;
-  if(ball.phase==='held'){
+function step(b,dt){
+  const m=S.mass, F=b.F, tg=b.tg;
+  if(b.phase==='held'){
     const k=m*OMEGA*OMEGA, c=2*m*OMEGA;
-    let fx=k*(target.x-ball.x)+c*(target.vx-ball.vx);
-    let fy=k*(target.y-ball.y)+c*(target.vy-ball.vy)+m*G;
+    let fx=k*(tg.x-b.x)+c*(tg.vx-b.vx);
+    let fy=k*(tg.y-b.y)+c*(tg.vy-b.vy)+m*G;
     const lim=m*150, f=Math.hypot(fx,fy); if(f>lim){fx*=lim/f;fy*=lim/f;}
     F.hx=fx; F.hy=fy; F.ny=0;
-    ball.vx+=fx/m*dt; ball.vy+=(fy/m-G)*dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
-    if(ball.y<0){ball.y=0; if(ball.vy<0) ball.vy=0; F.ny=Math.max(0,m*G-F.hy);}
-    if(hasShelf() && ball.x<SHELF_W && ball.y<S.h){
+    b.vx+=fx/m*dt; b.vy+=(fy/m-G)*dt; b.x+=b.vx*dt; b.y+=b.vy*dt;
+    if(b.y<0){b.y=0; if(b.vy<0) b.vy=0; F.ny=Math.max(0,m*G-F.hy);}
+    if(hasShelf() && b.x<SHELF_W && b.y<S.h){
       // 선반 안으로 들어가면 덜 들어간 쪽(윗면 또는 옆면)으로 밀어냄
-      if(S.h-ball.y <= SHELF_W-ball.x){ ball.y=S.h; if(ball.vy<0) ball.vy=0; F.ny=Math.max(0,m*G-F.hy); }
-      else { ball.x=SHELF_W; if(ball.vx<0) ball.vx=0; }
+      if(S.h-b.y <= SHELF_W-b.x){ b.y=S.h; if(b.vy<0) b.vy=0; F.ny=Math.max(0,m*G-F.hy); }
+      else { b.x=SHELF_W; if(b.vx<0) b.vx=0; }
     }
-  } else if(ball.phase==='flying'){
+  } else if(b.phase==='flying'){
     F.hx=F.hy=F.ny=0;
-    const prevX=ball.x, prevY=ball.y, prevVy=ball.vy;
-    const addPath=()=>{ if(!rec) return; rec.sx+=Math.abs(ball.x-prevX);
+    const rec=b.rec, prevX=b.x, prevY=b.y, prevVy=b.vy;
+    const addPath=()=>{ if(!rec) return; rec.sx+=Math.abs(b.x-prevX);
       // 최고점을 지나는 step은 올라간 거리 + 내려간 거리
-      rec.sy+= (prevVy>0&&ball.vy<=0) ? 2*(prevVy*prevVy/(2*G))-(ball.y-prevY) : Math.abs(ball.y-prevY); };
+      rec.sy+= (prevVy>0&&b.vy<=0) ? 2*(prevVy*prevVy/(2*G))-(b.y-prevY) : Math.abs(b.y-prevY); };
     // 등가속도 운동 식을 그대로 사용 (오일러 적분 오차 없음)
-    ball.x+=ball.vx*dt; ball.y+=ball.vy*dt-0.5*G*dt*dt; ball.vy-=G*dt;
-    if(rec){ rec.maxY=Math.max(rec.maxY,ball.y); if(prevVy>0&&ball.vy<=0) rec.maxY=Math.max(rec.maxY,prevY+prevVy*prevVy/(2*G)); }
-    if(simT>=nextDot){trail.push(dotNow()); nextDot+=S.dotInt;}
-    if(hasShelf() && ball.y<S.h && ball.x<SHELF_W && ball.x-ball.vx*dt>=SHELF_W-1e-9){ ball.x=SHELF_W; ball.vx=-0.3*ball.vx; }
-    const surf = (hasShelf() && prevY>=S.h-1e-9 && ball.y<S.h && onShelfX(ball.x)) ? S.h : (ball.y<=0 ? 0 : null);
+    b.x+=b.vx*dt; b.y+=b.vy*dt-0.5*G*dt*dt; b.vy-=G*dt;
+    if(rec){ rec.maxY=Math.max(rec.maxY,b.y); if(prevVy>0&&b.vy<=0) rec.maxY=Math.max(rec.maxY,prevY+prevVy*prevVy/(2*G)); }
+    if(simT>=b.nextDot){b.trail.push(dotNow(b)); b.nextDot+=S.dotInt;}
+    if(hasShelf() && b.y<S.h && b.x<SHELF_W && b.x-b.vx*dt>=SHELF_W-1e-9){ b.x=SHELF_W; b.vx=-0.3*b.vx; }
+    const surf = (hasShelf() && prevY>=S.h-1e-9 && b.y<S.h && onShelfX(b.x)) ? S.h : (b.y<=0 ? 0 : null);
     if(surf!==null){
       // 정확한 착지 시점으로 보정
       // 표면을 지난 만큼의 시간 τ: ½gτ² + vyτ + (surf - y) = 0 의 작은 근
-      const c=surf-ball.y, disc=Math.max(0,ball.vy*ball.vy-2*G*c);
-      const over=Math.min(dt,Math.max(0,(-ball.vy-Math.sqrt(disc))/G));
-      ball.x-=ball.vx*over; ball.y=surf; ball.vy+=G*over; simT-=over; addPath();
-      pushRec(); trail.push(dotNow()); finish(surf>0?'shelf':'land'); simT+=over;
-      ball.vx*=0.4;
-      restOn(surf, surf>0?MSG_SHELF:['바닥에 착지','공을 다시 잡아 던져 보세요']);
-    } else if((addPath(),ball.x<-0.6||ball.x>Wm+0.6||ball.y>WORLD_H+3)){
-      finish('out'); ball.phase='gone'; goneAt=performance.now(); motion=['화면 밖으로 나갔어요','잠시 뒤 공이 돌아와요'];
+      const c=surf-b.y, disc=Math.max(0,b.vy*b.vy-2*G*c);
+      const over=Math.min(dt,Math.max(0,(-b.vy-Math.sqrt(disc))/G));
+      b.x-=b.vx*over; b.y=surf; b.vy+=G*over; simT-=over; addPath();
+      pushRec(b); b.trail.push(dotNow(b)); finish(b,surf>0?'shelf':'land'); simT+=over;
+      b.vx*=0.4;
+      restOn(b, surf, surf>0?MSG_SHELF:['바닥에 착지','공을 다시 잡아 던져 보세요']);
+    } else if((addPath(),b.x<-0.6||b.x>Wm+0.6||b.y>WORLD_H+3)){
+      finish(b,'out'); b.phase='gone'; b.goneAt=performance.now(); b.motion=['화면 밖으로 나갔어요','잠시 뒤 공이 돌아와요'];
     }
-  } else if(ball.phase==='rest'){
-    F.hx=F.hy=0; F.ny=m*G; ball.vy=0; ball.y=ball.surf;
+  } else if(b.phase==='rest'){
+    F.hx=F.hy=0; F.ny=m*G; b.vy=0; b.y=b.surf;
     // 선반 위에서는 잘 굴러가고(마찰 작음), 바닥에서는 금방 멈춤
-    ball.vx*=Math.exp(-(ball.surf>0?0.3:4)*dt);
-    if(Math.abs(ball.vx)<0.01){ if(ball.vx!==0&&motion[0].includes('굴러가는 중')) motion=ball.surf>0?MSG_SHELF:['바닥에 멈췄어요','공을 다시 잡아 던져 보세요']; ball.vx=0; }
-    ball.x+=ball.vx*dt;
-    if(ball.surf>0){
-      if(!hasShelf()||Math.abs(ball.surf-S.h)>1e-6){ ball.surf=S.h; }
-      if(!onShelfX(ball.x)){
-        if(ball.x+R>SHELF_W){ ball.phase='flying'; F.ny=0; launched(ball.vx,0,['선반에서 굴러 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']); rec.rolled=true; }
-        else { ball.x=-R; ball.vx=0; }
+    b.vx*=Math.exp(-(b.surf>0?0.3:4)*dt);
+    if(Math.abs(b.vx)<0.01){ if(b.vx!==0&&b.motion[0].includes('굴러가는 중')) b.motion=b.surf>0?MSG_SHELF:['바닥에 멈췄어요','공을 다시 잡아 던져 보세요']; b.vx=0; }
+    b.x+=b.vx*dt;
+    if(b.surf>0){
+      if(!hasShelf()||Math.abs(b.surf-S.h)>1e-6){ b.surf=S.h; }
+      if(!onShelfX(b.x)){
+        if(b.x+R>SHELF_W){ b.phase='flying'; F.ny=0; launched(b,b.vx,0,['선반에서 굴러 떨어짐','수평 방향 속도를 가지고 떨어지는 수평 던지기예요']); b.rec.rolled=true; }
+        else { b.x=-R; b.vx=0; }
       }
     } else {
       const minX = hasShelf()?SHELF_W:0;
-      if(ball.x<minX){ball.x=minX;ball.vx=0;} if(ball.x>Wm-2*R){ball.x=Wm-2*R;ball.vx=0;}
+      if(b.x<minX){b.x=minX;b.vx=0;} if(b.x>Wm-2*R){b.x=Wm-2*R;b.vx=0;}
     }
-  } else if(ball.phase==='parked'){
+  } else if(b.phase==='parked'){
     F.hx=F.hy=0; F.ny=m*G;
   }
 }
@@ -461,6 +487,7 @@ function videoRect(){
 function lmToPx(l,vr){ return [W-(vr.ox+l.x*vr.vw*vr.s), vr.oy+l.y*vr.vh*vr.s]; }
 
 function draw(){
+  const font=getComputedStyle(document.body).fontFamily, A=act();
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle=COL.board; ctx.fillRect(0,0,W,H);
   const vr=videoRect();
@@ -478,7 +505,7 @@ function draw(){
   // 바닥과 자
   ctx.fillStyle='rgba(238,241,232,0.06)'; ctx.fillRect(0,floorPy,W,H-floorPy);
   ctx.strokeStyle=COL.chalk; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,floorPy); ctx.lineTo(W,floorPy); ctx.stroke();
-  ctx.fillStyle=COL.muted; ctx.font='12px '+getComputedStyle(document.body).fontFamily; ctx.textAlign='center';
+  ctx.fillStyle=COL.muted; ctx.font='12px '+font; ctx.textAlign='center';
   for(let x=0;x<=Wm;x+=0.5){const p=x*ppm; const major=Math.abs(x%1)<1e-6;
     ctx.strokeStyle=COL.muted; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(p,floorPy); ctx.lineTo(p,floorPy+(major?10:5)); ctx.stroke();
     if(major){ ctx.textAlign=x===0?'left':'center'; ctx.fillText(x+' m',x===0?p+2:p,floorPy+24); }}
@@ -486,7 +513,7 @@ function draw(){
   for(let y=1;y<=WORLD_H;y+=1){const p=floorPy-y*ppm; ctx.fillText(y+' m',4,p-4);}
   // 받침대 / 출발대
   if(S.mode==='free'){
-    if(ball.phase==='parked'){const [px,py]=toPx(stand.x,stand.y);
+    for(const b of A){ if(b.phase!=='parked') continue; const [px,py]=toPx(b.stand.x+R,b.stand.y);
       ctx.strokeStyle=COL.muted; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(px-30,py); ctx.lineTo(px+30,py); ctx.stroke();
       ctx.setLineDash([4,5]); ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px,floorPy); ctx.stroke(); ctx.setLineDash([]);}
   } else if(S.h>0){
@@ -495,36 +522,47 @@ function draw(){
     ctx.strokeStyle=COL.muted; ctx.lineWidth=2; ctx.strokeRect(0,py,px,floorPy-py);
     ctx.fillStyle=COL.muted; ctx.textAlign='right'; ctx.fillText('h = '+S.h.toFixed(1)+' m',px-8,py+18); ctx.textAlign='left';
   }
-  // 그림자 점 (수평 투영: 바닥, 수직 투영: 왼쪽 벽)
-  if(S.show.proj&&trail.length>1){
-    for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R);
-      ctx.fillStyle=COL.vel; ctx.beginPath(); ctx.arc(px,floorPy+34-24,3.5,0,7); ctx.fill();
-      ctx.fillStyle=COL.grav; ctx.beginPath(); ctx.arc(52,py,3.5,0,7); ctx.fill();}
-    ctx.fillStyle=COL.muted; ctx.fillText('수평 이동거리 (간격 일정)',8,floorPy-6);
+  // 그림자 점 (수평 투영: 바닥, 수직 투영: 왼쪽 벽). 공 2는 속이 빈 원으로 조금 옆에
+  if(S.show.proj&&A.some(b=>b.trail.length>1)){
+    for(const b of A){ if(b.trail.length<2) continue;
+      const hy = b.i ? floorPy+36 : floorPy+10, vx = b.i ? 38 : 52;
+      for(const d of b.trail){const [px,py]=toPx(d.x+R,d.y+R);
+        ctx.beginPath(); ctx.arc(px,hy,3.5,0,7);
+        if(b.i){ctx.strokeStyle=COL.vel; ctx.lineWidth=1.5; ctx.stroke();} else {ctx.fillStyle=COL.vel; ctx.fill();}
+        ctx.beginPath(); ctx.arc(vx,py,3.5,0,7);
+        if(b.i){ctx.strokeStyle=COL.grav; ctx.lineWidth=1.5; ctx.stroke();} else {ctx.fillStyle=COL.grav; ctx.fill();}
+      }
+    }
+    ctx.fillStyle=COL.muted; ctx.font='12px '+font; ctx.fillText('수평 이동거리 (간격 일정)',8,floorPy-6);
     ctx.save(); ctx.translate(70,floorPy-ppm*0.3); ctx.rotate(-Math.PI/2); ctx.fillText('수직 이동거리 (간격이 점점 커짐)',0,0); ctx.restore();
   }
+  // 이전 궤적: 점선 원 (공마다 제 색)
+  if(S.show.prev){
+    for(const b of A){ const pv=b.prev; if(!pv) continue;
+      ctx.globalAlpha=0.6; ctx.strokeStyle=BALL[b.i].line; ctx.fillStyle=BALL[b.i].dot; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+      for(const d of pv.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
+      ctx.setLineDash([]);
+      for(const d of pv.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();}
+      ctx.globalAlpha=1;
+      const [qx,qy]=toPx(pv.trail[0].x+R,pv.trail[0].y+R);
+      ctx.font='12px '+font; ctx.textAlign='right'; ctx.fillText(S.n>1?`공 ${b.i+1} 이전`:'이전 궤적',qx-R*ppm-4,qy+4+b.i*15); ctx.textAlign='left';
+    }
+  }
   // 궤적 점
-  // 이전 궤적: 파란 점선 원
-  if(S.show.prev&&prev){
-    ctx.strokeStyle='rgba(108,200,255,0.6)'; ctx.fillStyle='rgba(108,200,255,0.8)'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
-    for(const d of prev.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
-    ctx.setLineDash([]);
-    for(const d of prev.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();}
-    const [qx,qy]=toPx(prev.trail[0].x+R,prev.trail[0].y+R);
-    ctx.font='12px '+getComputedStyle(document.body).fontFamily; ctx.textAlign='right'; ctx.fillText('이전 궤적',qx-R*ppm-4,qy+4); ctx.textAlign='left';
-  }
   if(S.show.trail){
-    ctx.strokeStyle='rgba(238,241,232,0.7)'; ctx.lineWidth=1.5;
-    for(const d of trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();}
+    for(const b of A){ ctx.strokeStyle=BALL[b.i].line; ctx.lineWidth=1.5;
+      for(const d of b.trail){const [px,py]=toPx(d.x+R,d.y+R); ctx.beginPath(); ctx.arc(px,py,R*ppm*0.9,0,7); ctx.stroke();} }
   }
-  drawDots();
+  for(const b of A) drawDots(b);
   // 공
-  if(ball.phase!=='gone'){
-    const [bx,by]=toPx(ball.x+R,ball.y+R), br=R*ppm;
+  for(const b of A){
+    if(b.phase==='gone') continue;
+    const [bx,by]=toPx(b.x+R,b.y+R), br=R*ppm, F=b.F, Fs=b.Fs;
     const g=ctx.createRadialGradient(bx-br*.35,by-br*.35,br*.1,bx,by,br);
-    g.addColorStop(0,'#fff6e0'); g.addColorStop(1,'#f0a24a');
+    g.addColorStop(0,BALL[b.i].c0); g.addColorStop(1,BALL[b.i].c1);
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
-    if(ball.phase==='held'){ctx.strokeStyle=COL.hand; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(bx,by,br+5,0,7); ctx.stroke();}
+    if(S.n>1){ ctx.fillStyle='rgba(23,34,31,0.85)'; ctx.font='700 '+Math.round(br*1.1)+'px '+font; ctx.textAlign='center'; ctx.fillText(b.i+1,bx,by+br*0.38); ctx.textAlign='left'; }
+    if(b.phase==='held'){ctx.strokeStyle=COL.hand; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(bx,by,br+5,0,7); ctx.stroke();}
     const m=S.mass, fScale=(0.55*ppm)/(m*G);  // mg 화살표 = 0.55 m 길이
     if(S.show.force){
       arrow(bx,by,0,m*G*fScale,COL.grav,5,'mg');
@@ -534,10 +572,10 @@ function draw(){
         arrow(bx,by,dx,dy,COL.hand,5,'F손');
       }
     }
-    if(S.show.vel&&(ball.phase==='flying'||ball.phase==='held'||(ball.phase==='rest'&&Math.abs(ball.vx)>0.05))){
+    if(S.show.vel&&(b.phase==='flying'||b.phase==='held'||(b.phase==='rest'&&Math.abs(b.vx)>0.05))){
       const vs=0.16*ppm; ctx.globalAlpha=0.55;
-      arrow(bx,by,ball.vx*vs,0,COL.vel,3,'vx'); arrow(bx,by,0,-ball.vy*vs,COL.vel,3,'vy');
-      ctx.globalAlpha=1; arrow(bx,by,ball.vx*vs,-ball.vy*vs,COL.vel,4,'v');
+      arrow(bx,by,b.vx*vs,0,COL.vel,3,'vx'); arrow(bx,by,0,-b.vy*vs,COL.vel,3,'vy');
+      ctx.globalAlpha=1; arrow(bx,by,b.vx*vs,-b.vy*vs,COL.vel,4,'v');
     }
   }
   // 손 뼈대
@@ -549,19 +587,32 @@ function draw(){
       ctx.fillStyle=h.closed?COL.hand:COL.chalk; ctx.beginPath(); ctx.arc(h.px,h.py,h.closed?9:6,0,7); ctx.fill();
     }
   }
-  // 상단 라벨
-  ctx.fillStyle=COL.chalk; ctx.font='700 22px '+getComputedStyle(document.body).fontFamily; ctx.fillText(motion[0],16,34);
+  // 상단 라벨 (공마다 한 줄)
+  A.forEach((b,k)=>{
+    const y=34+k*28;
+    if(S.n>1){ ctx.fillStyle=BALL[b.i].main; ctx.beginPath(); ctx.arc(24,y-7,7,0,7); ctx.fill(); }
+    ctx.fillStyle=COL.chalk; ctx.font='700 '+(S.n>1?20:22)+'px '+font;
+    ctx.fillText(S.n>1?`공 ${b.i+1}  ${b.motion[0]}`:b.motion[0], S.n>1?38:16, y);
+  });
 }
 
 // 운동이 멈추면 궤적 점마다 세로선(수평 위치)과 가로선(수직 위치)을 그려
 // 같은 시간 간격 동안 수평 이동거리는 일정하고 수직 이동거리는 점점 커지는 것을 보여 줌
 function drawMotionGrid(){
-  if(!(ball.phase==='rest'||ball.phase==='parked'||ball.phase==='gone')||trail.length<2) return false;
-  const pts=trail.map(d=>toPx(d.x+R,d.y+R)), [x0,y0]=pts[0];
+  const A=act(); if(A.some(b=>b.phase==='flying'||b.phase==='held')) return false;
+  const withTrail=A.filter(b=>b.trail.length>1); if(!withTrail.length) return false;
+  // 숫자는 한 공 것만 (표에 보여 주는 공 우선)
+  const lb=withTrail.includes(selBall())?selBall():withTrail[0];
+  for(const b of withTrail) gridFor(b, b===lb, withTrail.length>1);
+  return true;
+}
+function gridFor(b, withLabels, many){
+  const pts=b.trail.map(d=>toPx(d.x+R,d.y+R)), [x0,y0]=pts[0];
   const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
-  const l=Math.min(...xs)-R*ppm, r=Math.max(...xs)+R*ppm, t=Math.min(...ys)-R*ppm, b=floorPy;
+  const l=Math.min(...xs)-R*ppm, r=Math.max(...xs)+R*ppm, t=Math.min(...ys)-R*ppm, bt=floorPy;
   const font=getComputedStyle(document.body).fontFamily;
   ctx.lineWidth=1; ctx.font='11px '+font;
+  if(b.i) ctx.setLineDash([4,4]);   // 공 2의 격자는 점선
   // 같은 자리의 선은 한 번만 (위로 던지면 같은 높이를 두 번 지남)
   const uniq=a=>a.filter((v,i)=>a.findIndex(w=>Math.abs(w-v)<2)===i);
   // 글자는 출발점 것을 먼저 놓고, 이미 놓은 글자와 가까우면 건너뜀
@@ -569,20 +620,21 @@ function drawMotionGrid(){
   // 세로선: 수평 이동거리
   ctx.strokeStyle='rgba(245,211,90,0.35)'; ctx.fillStyle=COL.vel; ctx.textAlign='center';
   const vx=uniq(xs);
-  for(const px of vx){ ctx.beginPath(); ctx.moveTo(px,t); ctx.lineTo(px,b); ctx.stroke(); }
-  for(const px of labels(vx,x0,34)) ctx.fillText(fmt(Math.abs(px-x0)/ppm),px,t-6);
+  for(const px of vx){ ctx.beginPath(); ctx.moveTo(px,t); ctx.lineTo(px,bt); ctx.stroke(); }
+  if(withLabels) for(const px of labels(vx,x0,34)) ctx.fillText(fmt(Math.abs(px-x0)/ppm),px,t-6);
   // 가로선: 출발점에서 잰 수직 이동거리
   ctx.strokeStyle='rgba(255,125,110,0.35)'; ctx.fillStyle=COL.grav; ctx.textAlign='left';
   const hy=uniq(ys);
   for(const py of hy){ ctx.beginPath(); ctx.moveTo(l,py); ctx.lineTo(r,py); ctx.stroke(); }
-  for(const py of labels(hy,y0,13)) ctx.fillText(fmt(Math.abs(py-y0)/ppm),r+4,py+4);
-  ctx.fillStyle=COL.muted; ctx.fillText('격자: 궤적 점마다 그린 선 · 숫자는 출발점에서 잰 이동거리 (m)',l,t-20);
-  return true;
+  if(withLabels) for(const py of labels(hy,y0,13)) ctx.fillText(fmt(Math.abs(py-y0)/ppm),r+4,py+4);
+  ctx.setLineDash([]);
+  if(withLabels){ ctx.fillStyle=COL.muted;
+    ctx.fillText('격자: 궤적 점마다 그린 선 · 숫자는 출발점에서 잰 이동거리 (m)'+(many?` · 숫자는 공 ${b.i+1} 기준`:''),l,t-20); }
 }
 
 // 궤적 점마다 속도·알짜힘 벡터와 수치
-function drawDots(){
-  const sh=S.show; if(!trail.length||!(sh.dotV||sh.dotF||sh.dotN)) return;
+function drawDots(b){
+  const sh=S.show, trail=b.trail; if(!trail.length||!(sh.dotV||sh.dotF||sh.dotN)) return;
   const font=getComputedStyle(document.body).fontFamily;
   const vs=0.12*ppm, fs=(0.32*ppm)/(S.mass*G);
   trail.forEach((d,i)=>{
@@ -590,9 +642,9 @@ function drawDots(){
     if(sh.dotF){ ctx.globalAlpha=0.9; if(Math.abs(d.fx)>1e-3) arrow(px,py-6,d.fx*fs,0,COL.net,2.5); arrow(px-7,py,0,-d.fy*fs,COL.net,2.5); }
     if(sh.dotV){ ctx.globalAlpha=0.95; arrow(px,py,d.vx*vs,0,COL.vel,2.5); arrow(px,py,0,-d.vy*vs,COL.vel,2.5); }
     ctx.globalAlpha=1;
-    ctx.fillStyle=COL.chalk; ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();
+    ctx.fillStyle=BALL[b.i].dot; ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fill();
     if(sh.dotN){
-      const lines=[`t ${fmt(d.t)} s`];
+      const lines=[`${S.n>1?`공${b.i+1} `:''}t ${fmt(d.t)} s`];
       lines.push(`vx ${fmt(Math.abs(d.vx))}  vy ${fmt(Math.abs(d.vy))}`);   // 속도도 크기로 표시
       lines.push(`Fx ${fmt(Math.abs(d.fx))}  Fy ${fmt(Math.abs(d.fy))}`);   // 힘은 크기로 표시
       ctx.font='11px '+(css.getPropertyValue('--mono')||'monospace');
@@ -600,7 +652,7 @@ function drawDots(){
       // 위아래로 번갈아 놓아 겹침을 줄임
       const lx=px+8, ly= i%2 ? py+R*ppm+4 : py-R*ppm-h-4;
       ctx.fillStyle='rgba(23,34,31,0.82)'; ctx.fillRect(lx,ly,w,h);
-      ctx.strokeStyle=COL.line; ctx.lineWidth=1; ctx.strokeRect(lx,ly,w,h);
+      ctx.strokeStyle=b.i?BALL[1].main:COL.line; ctx.lineWidth=1; ctx.strokeRect(lx,ly,w,h);
       lines.forEach((l,k)=>{ ctx.fillStyle=k===0?COL.muted:k===1?COL.vel:COL.net; ctx.fillText(l,lx+5,ly+14+k*13); });
     }
   });
@@ -659,8 +711,7 @@ async function startCam(){
   if(granted||store.get('ballLab.autoCam')==='1') startCam();
 })();
 function setStatus(cls,txt){ $('status').className=cls; $('statusText').textContent=txt; }
-const handState=new Map(); // index -> {closed}
-let handHist=[];
+const handState=new Map(); // index -> {closed, cx, t}
 function processHands(now){
   if(!landmarker||video.readyState<2||video.currentTime===lastVideoT) return;
   lastVideoT=video.currentTime;
@@ -684,64 +735,79 @@ function processHands(now){
   });
   for(let i=hands.length;i<4;i++) handState.delete(i);
 
-  if(target.src==='mouse') return;
-  const R2=R*ppm;
-  const [bx,by]=toPx(ball.x+R,ball.y+R);
-  if(ball.phase==='held'&&target.src==='hand'){
-    // 잡고 있는 손: 공에 가장 가까운 손
-    let h=null,best=1e9; for(const k of hands){const dd=Math.hypot(k.px-bx,k.py-by); if(dd<best){best=dd;h=k;}}
+  const R2=R*ppm, used=new Set();
+  const ctr=b=>toPx(b.x+R,b.y+R);
+  // 1) 손으로 잡고 있는 공: 아직 안 쓴 손 중 가장 가까운 손이 그 공을 잡고 있는 손
+  for(const b of act()){
+    if(b.phase!=='held'||b.tg.src!=='hand') continue;
+    const [bx,by]=ctr(b);
+    let h=null,best=1e9; for(const k of hands){ if(used.has(k)) continue; const dd=Math.hypot(k.px-bx,k.py-by); if(dd<best){best=dd;h=k;} }
     if(h&&best<R2*6){
-      target.lastSeen=now;
-      if(!h.closed){ release(); setStatus('ok','놓았어요!'); return; }
-      updateTarget(h.px,h.py,now);
+      used.add(h); b.tg.lastSeen=now;
+      if(!h.closed){ release(b); setStatus('ok',S.n>1?`공 ${b.i+1}을 놓았어요!`:'놓았어요!'); continue; }
+      updateTarget(b,h.px,h.py,now);
     }
-  } else if(ball.phase!=='held'){
-    for(const h of hands){
-      // 펼친 손가락이나 손바닥이 공에 닿으며 지나가면 툭 치기
-      if(!h.closed&&(ball.phase==='rest'||ball.phase==='parked')&&[8,12,9].some(j=>{const [qx,qy]=lmToPx(h.lm[j],vr); return Math.hypot(qx-bx,qy-by)<R2*1.6;})){ hit(h.hvx); }
-      if(h.closed&&Math.hypot(h.px-bx,h.py-by)<R2*2.6&&ball.phase!=='gone'){
-        handHist=[]; updateTarget(h.px,h.py,now,true); grab('hand'); target.lastSeen=now; setStatus('grab','잡았어요 · 손을 펴면 놓아요'); break;
+  }
+  // 2) 남은 손: 쥐면 가까운 공을 잡고, 편 채로 스치면 툭 치기
+  for(const h of hands){
+    if(used.has(h)) continue;
+    if(h.closed){
+      let pick=null,best=R2*2.6;
+      for(const b of act()){ if(b.phase==='held'||b.phase==='gone') continue; const [bx,by]=ctr(b); const dd=Math.hypot(h.px-bx,h.py-by); if(dd<best){best=dd;pick=b;} }
+      if(pick){ used.add(h); updateTarget(pick,h.px,h.py,now,true); grab(pick,'hand'); pick.tg.lastSeen=now;
+        setStatus('grab',(S.n>1?`공 ${pick.i+1}을 `:'')+'잡았어요 · 손을 펴면 놓아요'); }
+    } else {
+      for(const b of act()){
+        if(b.phase!=='rest'&&b.phase!=='parked') continue;
+        const [bx,by]=ctr(b);
+        if([8,12,9].some(j=>{const [qx,qy]=lmToPx(h.lm[j],vr); return Math.hypot(qx-bx,qy-by)<R2*1.6;})) hit(b,h.hvx);
       }
     }
   }
 }
-function updateTarget(px,py,now,reset){
+function updateTarget(b,px,py,now,reset){
+  const tg=b.tg, hh=tg.hist;
   let [wx,wy]=toWorld(px,py); wy-=R; wx-=R;
-  if(reset){handHist=[]; target.x=wx; target.y=wy;}
-  else { const a=0.6; target.x+= a*(wx-target.x); target.y+=a*(wy-target.y); }
-  handHist.push({t:now,x:target.x,y:target.y});
-  while(handHist.length&&now-handHist[0].t>100) handHist.shift();
-  if(handHist.length>=2){const a=handHist[0],b=handHist[handHist.length-1],dt=(b.t-a.t)/1000;
-    if(dt>0.01){target.vx=(b.x-a.x)/dt; target.vy=(b.y-a.y)/dt;}}
-  else {target.vx=0;target.vy=0;}
+  if(reset){hh.length=0; tg.x=wx; tg.y=wy;}
+  else { const a=0.6; tg.x+= a*(wx-tg.x); tg.y+=a*(wy-tg.y); }
+  hh.push({t:now,x:tg.x,y:tg.y});
+  while(hh.length&&now-hh[0].t>100) hh.shift();
+  if(hh.length>=2){const a=hh[0],c=hh[hh.length-1],dt=(c.t-a.t)/1000;
+    if(dt>0.01){tg.vx=(c.x-a.x)/dt; tg.vy=(c.y-a.y)/dt;}}
+  else {tg.vx=0;tg.vy=0;}
 }
 
-// ---------- 마우스 / 터치 ----------
+// ---------- 마우스 / 터치 (손가락마다 공 하나씩) ----------
+const ptrSrc=id=>'ptr'+id;
+const heldBy=src=>act().find(b=>b.phase==='held'&&b.tg.src===src);
 cv.addEventListener('pointerdown',e=>{
   const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
-  const [bx,by]=toPx(ball.x+R,ball.y+R);
-  if(ball.phase!=='gone'&&ball.phase!=='held'&&Math.hypot(px-bx,py-by)<R*ppm*2.2){
-    cv.setPointerCapture(e.pointerId); updateTarget(px,py,performance.now(),true); grab('mouse'); cv.style.cursor='grabbing';
-  }
+  let pick=null,best=R*ppm*2.2;
+  for(const b of act()){ if(b.phase==='gone'||b.phase==='held') continue; const [bx,by]=toPx(b.x+R,b.y+R); const dd=Math.hypot(px-bx,py-by); if(dd<best){best=dd;pick=b;} }
+  if(pick){ cv.setPointerCapture(e.pointerId); updateTarget(pick,px,py,performance.now(),true); grab(pick,ptrSrc(e.pointerId)); cv.style.cursor='grabbing'; }
 });
-let lastPtr=null;
+const lastPtr=new Map();
 cv.addEventListener('pointermove',e=>{
-  if(target.src!=='mouse'){
-    const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top, now=performance.now();
-    if(lastPtr&&now>lastPtr.t&&(ball.phase==='rest'||ball.phase==='parked')){
-      const [bx,by]=toPx(ball.x+R,ball.y+R);
-      if(Math.hypot(px-bx,py-by)<R*ppm*1.3) hit(((px-lastPtr.x)/ppm)/((now-lastPtr.t)/1000));
+  const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top, now=performance.now();
+  const b=heldBy(ptrSrc(e.pointerId));
+  if(b){ updateTarget(b,px,py,now); return; }
+  // 잡고 있지 않은 포인터가 공을 스치면 툭 치기
+  const lp=lastPtr.get(e.pointerId);
+  if(lp&&now>lp.t){
+    for(const c of act()){
+      if(c.phase!=='rest'&&c.phase!=='parked') continue;
+      const [bx,by]=toPx(c.x+R,c.y+R);
+      if(Math.hypot(px-bx,py-by)<R*ppm*1.3) hit(c,((px-lp.x)/ppm)/((now-lp.t)/1000));
     }
-    lastPtr={x:px,t:now}; return;
   }
-  const r=cv.getBoundingClientRect(); updateTarget(e.clientX-r.left,e.clientY-r.top,performance.now());
+  lastPtr.set(e.pointerId,{x:px,t:now});
 });
-const up=()=>{ if(target.src==='mouse'&&ball.phase==='held'){ release(); } cv.style.cursor='grab'; };
+const up=e=>{ const b=heldBy(ptrSrc(e.pointerId)); if(b) release(b); lastPtr.delete(e.pointerId); if(!act().some(c=>c.phase==='held')) cv.style.cursor='grab'; };
 cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
 
 // ---------- 실험 모드 ----------
-function theory(){
-  const h=S.h, k=S.expKind; let v0=k==='drop'?0:S.v0, th=k==='oblique'?S.angle*Math.PI/180:0;
+function theory(kind=S.expKind){
+  const h=S.h; let v0=kind==='drop'?0:S.v0, th=kind==='oblique'?S.angle*Math.PI/180:0;
   return theoryFrom(h, v0*Math.cos(th), v0*Math.sin(th));
 }
 // 높이 h에서 (vx, vy)로 출발해 바닥에 닿을 때까지
@@ -753,18 +819,21 @@ function updateTheoryLine(){
   const t=theory();
   $('theoryLine').textContent=`예상: 비행시간 ${t.T.toFixed(2)} s · 수평거리 ${t.R.toFixed(2)} m`+(S.expKind==='oblique'&&t.vy>0?` · 최고 높이 ${t.Hmax.toFixed(2)} m`:'');
 }
-function launch(){
+function launchOne(b,kind){
   // 선반 끝(모서리)에서 출발. 자유낙하는 선반에 걸리지 않도록 모서리 바로 바깥에서 놓음
-  target.src=null; park();
-  if(hasShelf()) ball.x = S.expKind==='drop' ? SHELF_W+0.01 : SHELF_W-R+0.001;
-  const t=theory();
-  ball.vx=t.vx; ball.vy=t.vy; ball.phase='flying'; F.ny=0;
-  launched(t.vx,t.vy, S.expKind==='drop'?['자유낙하','처음 속도 0, 중력만 작용']:S.expKind==='horizontal'?['수평 던지기','수평으로는 등속, 수직으로는 자유낙하']:classify(t.vx,t.vy));
-  rec.fromLaunch=true;
+  park(b);
+  if(hasShelf()) b.x = kind==='drop' ? SHELF_W+0.01 : SHELF_W-R+0.001;
+  const t=theory(kind);
+  b.vx=t.vx; b.vy=t.vy; b.phase='flying'; b.F.ny=0;
+  launched(b,t.vx,t.vy, kind==='drop'?['자유낙하','처음 속도 0, 중력만 작용']:kind==='horizontal'?['수평 던지기','수평으로는 등속, 수직으로는 자유낙하']:classify(t.vx,t.vy));
+  b.rec.fromLaunch=true;
 }
-function showResult(){
-  const r=lastResult; if(!r){$('resultSec').hidden=true;return;}
-  $('resultSec').hidden=false;
+function launch(){
+  sel=0; launchOne(balls[0],S.expKind);
+  // 공 2를 같은 순간에 비교용으로 발사 (자유낙하 ↔ 수평 던지기)
+  if(S.n>1&&S.pair) launchOne(balls[1], S.expKind==='drop'?'horizontal':'drop');
+}
+function resultHtml(r){
   const f=(v,d=2)=>v.toFixed(d), a=v=>f(Math.abs(v));   // 속도는 크기로 표시
   let html=`<b>${r.label}</b> · ${r.kind==='land'?'바닥에 착지':r.kind==='shelf'?'선반에 착지':'화면 밖으로 나감'}<br>
   놓을 때 속도: 수평 ${a(r.start.vx)} m/s, 수직 ${a(r.start.vy)} m/s (속력 ${f(Math.hypot(r.start.vx,r.start.vy))} m/s)<br>`;
@@ -777,14 +846,21 @@ function showResult(){
   } else {
     html+=`${r.kind==='land'?'비행시간':'화면 안에 있던 시간'} ${f(r.T)} s · 수평 이동 ${f(r.dx)} m · 최고 높이 ${f(r.maxH)} m`+(r.kind==='land'?`<br>착지 직전 속도: 수평 ${a(r.vxL)} m/s, 수직 ${a(r.vyL)} m/s`:'');
   }
-  $('resultBox').innerHTML=html;
+  return html;
+}
+function showResult(){
+  const rs=act().filter(b=>b.lastResult);
+  if(!rs.length){$('resultSec').hidden=true;return;}
+  $('resultSec').hidden=false;
+  $('resultBox').innerHTML=rs.map(b=>(S.n>1?`<div style="color:${BALL[b.i].main};font-weight:700;margin-top:${b===rs[0]?0:10}px">공 ${b.i+1}</div>`:'')+resultHtml(b.lastResult)).join('');
 }
 
 // ---------- 패널 ----------
 const fmt=(v,d=2)=>(Math.abs(v)<0.005?0:v).toFixed(d);
+let motionHtml='';
 function updatePanel(){
-  const m=S.mass;
-  $('mLab').textContent=m;
+  const m=S.mass, b=selBall(), Fs=b.Fs, rec=b.rec;
+  $('mLab').textContent=(S.n>1?`공 ${b.i+1} · `:'')+`질량 ${m} kg`;
   const A=v=>fmt(Math.abs(v));   // 힘은 크기(양수)로 표시
   $('gx').textContent='0.00'; $('gy').textContent=A(m*G);
   $('hx').textContent=A(Fs.hx); $('hy').textContent=A(Fs.hy);
@@ -792,12 +868,14 @@ function updatePanel(){
   const fx=Math.abs(Fs.hx), fy=Math.abs(Fs.hy+Fs.ny-m*G);
   $('fx').textContent=fmt(fx); $('fy').textContent=fmt(fy);
   $('bigFx').textContent=fmt(fx)+' N'; $('bigFy').textContent=fmt(fy)+' N';
-  const t = rec&&ball.phase==='flying' ? simT-rec.t0 : (ball.phase==='held'?0:(lastResult?lastResult.T:0));
+  const t = rec&&b.phase==='flying' ? simT-rec.t0 : (b.phase==='held'?0:(b.lastResult?b.lastResult.T:0));
   $('tV').textContent=fmt(t)+' s';
-  const sx=rec&&ball.phase!=='held'?rec.sx:0, sy=rec&&ball.phase!=='held'?rec.sy:0;
+  const sx=rec&&b.phase!=='held'?rec.sx:0, sy=rec&&b.phase!=='held'?rec.sy:0;
   $('xV').textContent=fmt(sx)+' m'; $('yV').textContent=fmt(sy)+' m';
-  $('vxV').textContent=fmt(Math.abs(ball.vx))+' m/s'; $('vyV').textContent=fmt(Math.abs(ball.vy))+' m/s'; $('vV').textContent=fmt(Math.hypot(ball.vx,ball.vy))+' m/s';
-  $('motionLabel').firstChild.textContent=motion[0]; $('motionSub').textContent=motion[1];
+  $('vxV').textContent=fmt(Math.abs(b.vx))+' m/s'; $('vyV').textContent=fmt(Math.abs(b.vy))+' m/s'; $('vV').textContent=fmt(Math.hypot(b.vx,b.vy))+' m/s';
+  document.querySelectorAll('#selSec [data-s]').forEach(x=>x.setAttribute('aria-pressed',+x.dataset.s===b.i));
+  const html=act().map(c=>`<div class="motion">${S.n>1?`<span class="bd" style="background:${BALL[c.i].main}"></span>공 ${c.i+1} · `:''}${c.motion[0]}<small>${c.motion[1]}</small></div>`).join('');
+  if(html!==motionHtml){ $('motionList').innerHTML=html; $('motionList').classList.toggle('two',S.n>1); motionHtml=html; }
 }
 
 // ---------- 그래프 ----------
@@ -811,9 +889,15 @@ function plot(canvas,key,title,unit,color){
   c.clearRect(0,0,w,h);
   const font=getComputedStyle(document.body).fontFamily;
   c.fillStyle=COL.chalk; c.font='600 13px '+font; c.fillText(title,L,15);
-  const data=rec?rec.data:[], pd=S.show.prev&&prev?prev.data:[];
+  // 공마다 지금 운동(실선)과 이전 운동(점선). 공이 2개면 선 색이 공 색
+  const series=[];
+  for(const b of act()){
+    const col=S.n>1?BALL[b.i].main:color;
+    if(S.show.prev&&b.prev&&b.prev.data.length>1) series.push({data:b.prev.data,col,dash:true});
+    if(b.rec&&b.rec.data.length>1) series.push({data:b.rec.data,col,dash:false});
+  }
   let tmax=1, vmin=-1, vmax=1;
-  if(data.length||pd.length){tmax=0.5; for(const p of [...data,...pd]){tmax=Math.max(tmax,p.t); vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
+  if(series.length){tmax=0.5; for(const s of series) for(const p of s.data){tmax=Math.max(tmax,p.t); vmin=Math.min(vmin,p[key]);vmax=Math.max(vmax,p[key]);}}
   const nonNeg=['sx','sy','vx','vy','fx','fy'].includes(key);   // 이동거리, 속도·힘 크기는 0 이상
   if(nonNeg) vmin=0;
   const pad=(vmax-vmin)*0.08; vmin-=nonNeg?0:pad; vmax+=pad;
@@ -825,12 +909,18 @@ function plot(canvas,key,title,unit,color){
   c.textAlign='center'; for(let t=0;t<=tmax+1e-9;t+=ts){c.fillText((+t.toFixed(2))+'s',X(t),h-8);}
   c.textAlign='left';
   if(vmin<0&&vmax>0){c.strokeStyle='rgba(238,241,232,0.35)'; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(w-Rr,Y(0)); c.stroke();}
-  if(pd.length>1){ c.strokeStyle=color; c.globalAlpha=0.5; c.lineWidth=1.8; c.setLineDash([5,4]); c.beginPath();
-    pd.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke(); c.setLineDash([]); c.globalAlpha=1;
-    c.fillStyle=COL.muted; c.textAlign='right'; c.fillText('점선: 이전 운동',w-Rr,15); c.textAlign='left'; }
-  if(data.length>1){c.strokeStyle=color; c.lineWidth=2.2; c.beginPath(); data.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke();
-    const p=data[data.length-1]; c.fillStyle=color; c.beginPath(); c.arc(X(p.t),Y(p[key]),3.5,0,7); c.fill();}
-  else {c.fillStyle=COL.muted; c.fillText('공을 잡거나 발사하면 기록이 시작돼요',L+6,h/2);}
+  for(const s of series){
+    c.strokeStyle=s.col; c.globalAlpha=s.dash?0.5:1; c.lineWidth=s.dash?1.8:2.2; c.setLineDash(s.dash?[5,4]:[]); c.beginPath();
+    s.data.forEach((p,i)=>{const x=X(p.t),y=Y(p[key]); i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke();
+    c.setLineDash([]); c.globalAlpha=1;
+    if(!s.dash){ const p=s.data[s.data.length-1]; c.fillStyle=s.col; c.beginPath(); c.arc(X(p.t),Y(p[key]),3.5,0,7); c.fill(); }
+  }
+  if(!series.length){c.fillStyle=COL.muted; c.fillText('공을 잡거나 발사하면 기록이 시작돼요',L+6,h/2);}
+  // 범례 (오른쪽 위)
+  c.textAlign='right'; let lx=w-Rr;
+  if(series.some(s=>s.dash)){ c.fillStyle=COL.muted; c.fillText('점선: 이전',lx,15); lx-=c.measureText('점선: 이전').width+10; }
+  if(S.n>1) for(const b of [...act()].reverse()){ c.fillStyle=BALL[b.i].main; c.fillText('공 '+(b.i+1),lx,15); lx-=c.measureText('공 '+(b.i+1)).width+8; }
+  c.textAlign='left';
   c.fillStyle=COL.muted; c.fillText(unit,4,15);
 }
 const GMAP={pos:[['sx','수평 이동거리 – t','m',COL.vel],['sy','수직 이동거리 – t','m',COL.grav]],
@@ -848,16 +938,22 @@ const DT=1/240;
 function frame(now){
   const realDt=Math.min(0.05,(now-lastFrame)/1000); lastFrame=now;
   if(camOn) processHands(now);
-  if(ball.phase==='held'&&target.src==='hand'&&now-target.lastSeen>250){ release(); setStatus('ok','손이 안 보여서 놓았어요'); }
-  if(ball.phase==='gone'&&now-goneAt>1500){ park(); motion=S.mode==='exp'?MSG_SHELF:['받침대 위에 정지','공을 잡아 보세요']; }
-  const scale = ball.phase==='flying'?S.slow:1;
+  const A=act();
+  for(const b of A){
+    if(b.phase==='held'&&b.tg.src==='hand'&&now-b.tg.lastSeen>250){ release(b); setStatus('ok','손이 안 보여서 놓았어요'); }
+    if(b.phase==='gone'&&now-b.goneAt>1500) park(b);
+  }
+  const scale = A.some(b=>b.phase==='flying')?S.slow:1;
   acc+=realDt*scale;
-  while(acc>=DT){ simT+=DT; step(DT); acc-=DT; }
-  if(ball.phase==='held'){ ballHist.push({t:now,vx:ball.vx,vy:ball.vy}); while(ballHist.length&&now-ballHist[0].t>200) ballHist.shift(); }
-  if(ball.phase==='flying') pushRec();
+  while(acc>=DT){ simT+=DT; for(const b of A) step(b,DT); acc-=DT; }
   const a=1-Math.exp(-realDt*18);
-  Fs.hx+=a*(F.hx-Fs.hx); Fs.hy+=a*(F.hy-Fs.hy); Fs.ny+=(F.ny>0&&Fs.ny===0)?F.ny:a*(F.ny-Fs.ny);
-  if(ball.phase==='flying'){Fs.hx=Fs.hy=Fs.ny=0;}
+  for(const b of A){
+    if(b.phase==='held'){ b.hist.push({t:now,vx:b.vx,vy:b.vy}); while(b.hist.length&&now-b.hist[0].t>200) b.hist.shift(); }
+    if(b.phase==='flying') pushRec(b);
+    const F=b.F, Fs=b.Fs;
+    Fs.hx+=a*(F.hx-Fs.hx); Fs.hy+=a*(F.hy-Fs.hy); Fs.ny+=(F.ny>0&&Fs.ny===0)?F.ny:a*(F.ny-Fs.ny);
+    if(b.phase==='flying'){Fs.hx=Fs.hy=Fs.ny=0;}
+  }
   draw();
   if(now-uiT>80){updatePanel(); uiT=now;}
   if(now-gT>120){drawGraphs(); gT=now;}
@@ -865,27 +961,35 @@ function frame(now){
 }
 
 // ---------- UI 연결 ----------
+function resetAll(){ balls.forEach(clearBall); showResult(); }
 function setMode(m){
   S.mode=m; $('modeFree').setAttribute('aria-pressed',m==='free'); $('modeExp').setAttribute('aria-pressed',m==='exp');
-  $('expPanel').hidden = m!=='exp'; rec=null; trail=[]; prev=null; lastResult=null; showResult(); park();
-  motion = m==='exp'?['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요. 잡아서 던지거나 선반 위에 다시 올려놓을 수도 있어요']:['받침대 위에 정지','공을 잡아 보세요'];
+  $('expPanel').hidden = m!=='exp'; resetAll();
+  if(m==='exp') for(const b of balls) b.motion=['선반 위에 놓여 있어요','발사를 누르거나, 손을 편 채로 공을 툭 쳐서 굴려 보세요. 잡아서 던지거나 선반 위에 다시 올려놓을 수도 있어요'];
   updateTheoryLine();
 }
+function setCount(n){
+  S.n=n; sel=0; $('selSec').hidden=n<2; $('pairRow').hidden=n<2; resetAll();
+}
 $('modeFree').onclick=()=>setMode('free'); $('modeExp').onclick=()=>setMode('exp');
-$('resetBtn').onclick=()=>{ rec=null; trail=[]; prev=null; target.src=null; park(); motion=S.mode==='exp'?MSG_SHELF:['받침대 위에 정지','공을 잡아 보세요']; };
+$('resetBtn').onclick=resetAll;
 document.querySelectorAll('#expPanel [data-k]').forEach(b=>b.onclick=()=>{
   S.expKind=b.dataset.k; document.querySelectorAll('#expPanel [data-k]').forEach(x=>x.setAttribute('aria-pressed',x===b));
   const drop=S.expKind==='drop', obl=S.expKind==='oblique';
   $('vIn').disabled=drop; $('aIn').disabled=!obl; $('vLab').style.opacity=drop?.4:1; $('aLab').style.opacity=obl?1:.4;
   $('aOut').textContent=obl?S.angle+'°':'0°';
   if(drop&&S.h<0.5){S.h=1.5;$('hIn').value=1.5;$('hOut').textContent='1.5 m';}
-  updateTheoryLine(); if(ball.phase==='parked') park();
+  updateTheoryLine(); for(const c of act()) if(c.phase==='parked') park(c);
 });
-$('hIn').oninput=e=>{S.h=+e.target.value; $('hOut').textContent=S.h.toFixed(1)+' m'; updateTheoryLine(); if(ball.phase==='rest'&&ball.surf>0){ if(hasShelf()){ball.surf=S.h;ball.y=S.h;} else park(); } else if(ball.phase==='parked') park();};
+$('hIn').oninput=e=>{S.h=+e.target.value; $('hOut').textContent=S.h.toFixed(1)+' m'; updateTheoryLine();
+  for(const b of act()){ if(b.phase==='rest'&&b.surf>0){ if(hasShelf()){b.surf=S.h;b.y=S.h;} else park(b); } else if(b.phase==='parked') park(b); }};
 $('vIn').oninput=e=>{S.v0=+e.target.value; $('vOut').textContent=S.v0.toFixed(1)+' m/s'; updateTheoryLine();};
 $('aIn').oninput=e=>{S.angle=+e.target.value; $('aOut').textContent=S.angle+'°'; updateTheoryLine();};
 $('launchBtn').onclick=launch;
-$('massSel').onchange=e=>{S.mass=+e.target.value; if(ball.phase==='parked'||ball.phase==='rest'){F.ny=S.mass*G;Fs.ny=F.ny;}};
+$('cPair').onchange=e=>{S.pair=e.target.checked;};
+$('nSel').onchange=e=>setCount(+e.target.value);
+document.querySelectorAll('#selSec [data-s]').forEach(x=>x.onclick=()=>{sel=+x.dataset.s; updatePanel();});
+$('massSel').onchange=e=>{S.mass=+e.target.value; for(const b of balls) if(b.phase==='parked'||b.phase==='rest'){b.F.ny=S.mass*G;b.Fs.ny=b.F.ny;}};
 $('slowSel').onchange=e=>{S.slow=+e.target.value;};
 $('dotSel').onchange=e=>{S.dotInt=+e.target.value;};
 [['cTrail','trail'],['cPrev','prev'],['cDotV','dotV'],['cDotF','dotF'],['cDotN','dotN'],['cProj','proj'],['cVel','vel'],['cForce','force'],['cVideo','video'],['cHand','hand']].forEach(([id,k])=>$(id).onchange=e=>S.show[k]=e.target.checked);
@@ -916,8 +1020,8 @@ $('fsBtn').onclick=toggleFs; $('fsExit').onclick=toggleFs;
 $('camBtn').onclick=startCam; $('skipBtn').onclick=()=>{$('camOverlay').hidden=true;};
 $('aIn').disabled=true; $('aLab').style.opacity=.4; $('aOut').textContent='0°';
 
-resize(); park(); Fs.ny=F.ny; updateTheoryLine(); requestAnimationFrame(frame);
-window.__lab={ball,S,launch,setMode,get rec(){return rec}};
+resize(); setCount(S.n); updateTheoryLine(); requestAnimationFrame(frame);
+window.__lab={balls,S,launch,setMode,setCount,get ball(){return balls[0]},get rec(){return balls[0].rec}};
 </script>
 </body>
 </html>
