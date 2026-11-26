@@ -134,6 +134,9 @@
   .check-q p { font-weight: 500; margin: 0 0 6px; }
   .comment { text-align: left; margin-top: 18px; }
 
+  .modal { position: fixed; inset: 0; z-index: 20; background: rgba(20, 28, 44, .45); display: grid; place-items: center; padding: 16px; }
+  .modal-box { background: var(--card); border-radius: var(--radius); padding: 22px; max-width: 420px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+  .modal-box p { margin: 0 0 18px; white-space: pre-line; }
   #toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
     background: #2b2f3a; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 15px;
@@ -173,6 +176,17 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3500);
 }
 function errMsg(e) { return (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, ''); }
+function askConfirm(msg, okText) {
+  return new Promise(resolve => {
+    const d = document.createElement('div');
+    d.className = 'modal';
+    d.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true"><p>${esc(msg)}</p>
+      <div class="row"><span class="spacer"></span><button class="btn ghost" data-v="0">취소</button><button class="btn" data-v="1">${esc(okText || '확인')}</button></div></div>`;
+    document.body.appendChild(d);
+    d.querySelectorAll('button').forEach(b => b.onclick = () => { d.remove(); resolve(b.dataset.v === '1'); });
+    d.querySelector('[data-v="1"]').focus();
+  });
+}
 const LV = { good: '좋아요', improve: '조금 보완해 봐요', rethink: '다시 생각해 봐요' };
 
 /* ───────── 시작 ───────── */
@@ -227,7 +241,7 @@ function renderTopics() {
       </button>`).join('')}</div>`;
   app.querySelectorAll('.topic').forEach(b => b.onclick = async () => {
     const t = S.cfg.topics.find(x => x.id === b.dataset.id);
-    if (!confirm(`"${t.title}"\n이 주제로 시작할까요?`)) return;
+    if (!(await askConfirm(`"${t.title}"\n이 주제로 시작할까요? 한 번 고르면 바꿀 수 없어요.`, '이 주제로 시작'))) return;
     try { S.me = await call('chooseTopic', S.token, t.id); S.stage = 0; renderWork(); }
     catch (e) { toast(errMsg(e)); }
   });
@@ -429,7 +443,7 @@ function renderCheck() {
   document.getElementById('submit').onclick = async () => {
     const ans = qs.map((_, i) => document.getElementById('ck-' + i).value);
     if (ans.some(x => x.replace(/\s/g, '').length < 2)) return toast('질문에 모두 답해 주세요.');
-    if (!confirm('제출할까요? 제출한 뒤에는 고칠 수 없어요.')) return;
+    if (!(await askConfirm('제출할까요?\n제출한 뒤에는 고칠 수 없어요.', '제출하기'))) return;
     app.innerHTML = `<div class="card done-box"><div class="spin"></div><div class="big">계획서를 만들고 있어요</div><p class="muted">30초쯤 걸려요. 이 화면을 닫지 마세요.</p></div>`;
     try { S.me = await call('submitPlan', S.token, ans); renderDone(); }
     catch (e) { toast(errMsg(e)); renderCheck(); }
