@@ -142,9 +142,21 @@ function topicIdFromCell_(cell) {
   }
   return '';
 }
-function questionById_(id) {
-  for (var i = 0; i < QUESTIONS.length; i++) if (QUESTIONS[i].id === id) return QUESTIONS[i];
+function questionById_(id, topicId) {
+  for (var i = 0; i < QUESTIONS.length; i++) {
+    if (QUESTIONS[i].id !== id) continue;
+    var t = topicById_(topicId);
+    var o = t && t.overrides && t.overrides[id];
+    if (!o) return QUESTIONS[i];
+    var q = {};
+    Object.keys(QUESTIONS[i]).forEach(function (k) { q[k] = QUESTIONS[i][k]; });
+    Object.keys(o).forEach(function (k) { q[k] = o[k]; });
+    return q;
+  }
   return null;
+}
+function questionsFor_(topicId) {
+  return QUESTIONS.map(function (q) { return questionById_(q.id, topicId); });
 }
 
 function cleanAnswers_(answers) {
@@ -191,7 +203,12 @@ function getConfig() {
     questions: QUESTIONS,
     maxFeedback: Number(cfg_('MAX_FEEDBACK', '3')),
     topics: TOPICS.map(function (t) {
-      return { id: t.id, func: t.func, title: t.title, summary: t.summary, available: t.available };
+      var ov = {};
+      Object.keys(t.overrides || {}).forEach(function (qid) {
+        ov[qid] = {};
+        Object.keys(t.overrides[qid]).forEach(function (k) { if (k !== 'check') ov[qid][k] = t.overrides[qid][k]; });
+      });
+      return { id: t.id, level: t.level, func: t.func, title: t.title, summary: t.summary, available: t.available, overrides: ov };
     })
   };
 }
@@ -278,8 +295,8 @@ function studentText_(s) {
   return String(s || '').replace(/</g, '‹').replace(/>/g, '›').trim() || '(비어 있음)';
 }
 
-function answersBlock_(answers) {
-  return QUESTIONS.map(function (q) {
+function answersBlock_(answers, topicId) {
+  return questionsFor_(topicId).map(function (q) {
     var a = answers[q.id] || '';
     if (q.choices && answers[q.id + '_choice']) a = '[선택: ' + answers[q.id + '_choice'] + '] ' + a;
     return q.id.toUpperCase() + ' ' + q.title + ':\n' + studentText_(a);
@@ -289,8 +306,8 @@ function answersBlock_(answers) {
 function requestFeedback(token, qid, answers) {
   var st = readStudent_(session_(token));
   if (st.status !== '작성 중') throw new Error('이미 제출해서 피드백을 받을 수 없어요.');
-  var q = questionById_(qid);
   var topic = topicById_(topicIdFromCell_(st.topic));
+  var q = topic && questionById_(qid, topic.id);
   if (!q || !topic) throw new Error('문항 또는 주제를 찾을 수 없어요.');
 
   answers = cleanAnswers_(answers);
@@ -311,7 +328,7 @@ function requestFeedback(token, qid, answers) {
     '[탐구 주제] ' + topic.func + ' · ' + topic.title,
     '[사용 가능한 재료] ' + topic.available.join(', '),
     '[기준 설계 — 학생에게 그대로 말하지 말 것]\n' + topic.reference,
-    '[학생의 전체 답변]\n<student>\n' + answersBlock_(answers) + '\n</student>',
+    '[학생의 전체 답변]\n<student>\n' + answersBlock_(answers, topic.id) + '\n</student>',
     '[지금 피드백할 문항] ' + q.id.toUpperCase() + ' ' + q.title + ' — ' + q.prompt,
     '[이 문항에서 확인할 점] ' + q.check,
     prev ? '[같은 문항의 이전 피드백 — 같은 말을 반복하지 말 것]\n<student>\n' + prev + '\n</student>' : '',
@@ -353,8 +370,8 @@ function replyFollowup(token, qid, reply) {
   reply = String(reply || '').slice(0, 800);
   if (reply.replace(/\s/g, '').length < 2) throw new Error('답을 써 주세요.');
 
-  var q = questionById_(qid);
   var topic = topicById_(topicIdFromCell_(st.topic));
+  var q = questionById_(qid, topic.id);
   var user = [
     '[탐구 주제] ' + topic.title,
     '[기준 설계 — 학생에게 그대로 말하지 말 것]\n' + topic.reference,
@@ -396,7 +413,7 @@ function getCheckQuestions(token) {
   var miss = missingRequired_(st.answers);
   if (miss.length) throw new Error('아직 쓰지 않은 문항이 있어요: ' + miss.join(', ').toUpperCase());
   var topic = topicById_(topicIdFromCell_(st.topic));
-  var user = '[탐구 주제] ' + topic.title + '\n\n[학생의 탐구 계획]\n<student>\n' + answersBlock_(st.answers) + '\n</student>';
+  var user = '[탐구 주제] ' + topic.title + '\n\n[학생의 탐구 계획]\n<student>\n' + answersBlock_(st.answers, topic.id) + '\n</student>';
   var out;
   try {
     out = gemini_(CHECK_SYSTEM, user, { maxTokens: 1024 });
@@ -451,7 +468,7 @@ function submitPlan(token, checkAnswers) {
   try {
     plan = gemini_(PLAN_SYSTEM,
       '[탐구 주제] ' + topic.func + ' · ' + topic.title +
-      '\n\n[학생의 답변]\n<student>\n' + answersBlock_(st.answers) + '\n</student>' +
+      '\n\n[학생의 답변]\n<student>\n' + answersBlock_(st.answers, topic.id) + '\n</student>' +
       '\n\n[이해 확인]\n<student>\n' + checkText + '\n</student>',
       { maxTokens: 8192, temperature: 0.2 });
     st.check.comments = (plan.checks || []).map(function (c) { return String((c && c.comment) || ''); });

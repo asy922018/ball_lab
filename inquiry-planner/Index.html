@@ -59,10 +59,15 @@
   /* 주제 */
   .topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
   .topic { text-align: left; cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 18px; }
+  .topic { display: flex; flex-direction: column; justify-content: flex-start; gap: 0; }
   .topic:hover { border-color: var(--brand); }
   .topic .func { font-size: 13px; font-weight: 700; color: var(--brand); }
   .topic h3 { font-size: 17px; margin: 4px 0 6px; }
   .topic p { margin: 0; font-size: 14px; color: var(--soft); }
+  .topic .row { flex-wrap: nowrap; align-items: flex-start; }
+  .topic .row .func { min-width: 0; }
+  .tag.lv-easy { background: var(--good-bg); color: var(--good); }
+  .tag.lv-mid { background: var(--improve-bg); color: var(--improve); }
 
   /* 작업 화면 */
   .topic-bar { margin-bottom: 16px; }
@@ -237,7 +242,8 @@ function renderTopics() {
     <p class="sub">하나를 골라 탐구 계획을 세워 봅시다. 한 번 고르면 바꿀 수 없으니 신중하게!</p>
     <div class="topics">${S.cfg.topics.map(t => `
       <button class="topic" data-id="${esc(t.id)}">
-        <div class="func">${esc(t.func)}</div><h3>${esc(t.title)}</h3><p>${esc(t.summary)}</p>
+        <div class="row"><span class="func">${esc(t.func)}</span><span class="spacer"></span>${t.level ? `<span class="tag lv-${t.level === '쉬움' ? 'easy' : 'mid'}">${esc(t.level)}</span>` : ''}</div>
+        <h3>${esc(t.title)}</h3><p>${esc(t.summary)}</p>
       </button>`).join('')}</div>`;
   app.querySelectorAll('.topic').forEach(b => b.onclick = async () => {
     const t = S.cfg.topics.find(x => x.id === b.dataset.id);
@@ -249,7 +255,12 @@ function renderTopics() {
 
 /* ───────── 문항 작성 ───────── */
 function topic() { return S.cfg.topics.find(t => t.id === S.me.topic); }
-function qsOf(stageId) { return S.cfg.questions.filter(q => q.stage === stageId); }
+function withTopic(q) {
+  const o = topic() && topic().overrides && topic().overrides[q.id];
+  return o ? Object.assign({}, q, o) : q;
+}
+function allQs() { return S.cfg.questions.map(withTopic); }
+function qsOf(stageId) { return allQs().filter(q => q.stage === stageId); }
 function answered(q) {
   const a = S.me.answers;
   if (q.choices && !a[q.id + '_choice']) return false;
@@ -390,8 +401,8 @@ function goStage(i) {
 
 /* ───────── 전체 검토 ───────── */
 function renderReview() {
-  const miss = S.cfg.questions.filter(q => q.required && !answered(q));
-  const weak = S.cfg.questions.filter(q => { const f = lastFb(q.id); return f && f.level === 'rethink'; });
+  const miss = allQs().filter(q => q.required && !answered(q));
+  const weak = allQs().filter(q => { const f = lastFb(q.id); return f && f.level === 'rethink'; });
   const a = S.me.answers;
   app.innerHTML = `
     <h2>전체 검토</h2>
