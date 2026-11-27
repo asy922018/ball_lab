@@ -13,6 +13,8 @@ var HEADERS = ['학번', '주제', '상태', '진행 단계', '피드백 사용'
 var COL = { id: 1, topic: 2, status: 3, stage: 4, fbCount: 5, docUrl: 6, updated: 7,
             pin: 8, answers: 9, feedback: 10, check: 11 };
 var MAX_ANSWER_LEN = 2000;
+var MAX_TABLE_LEN = 6000;
+var TABLE_MAX_COLS = 8, TABLE_MAX_ROWS = 12;
 
 function cfg_(key, dflt) {
   var v = PROPS.getProperty(key);
@@ -138,7 +140,8 @@ function topicTitle_(id) {
 }
 function topicIdFromCell_(cell) {
   for (var i = 0; i < TOPICS.length; i++) {
-    if (topicTitle_(TOPICS[i].id) === cell || TOPICS[i].id === cell) return TOPICS[i].id;
+    var t = TOPICS[i];
+    if (topicTitle_(t.id) === cell || t.id === cell || String(cell).slice(-t.title.length) === t.title) return t.id;
   }
   return '';
 }
@@ -166,8 +169,52 @@ function cleanAnswers_(answers) {
     [q.id, q.id + '_choice'].forEach(function (k) {
       if (typeof answers[k] === 'string') out[k] = answers[k].slice(0, MAX_ANSWER_LEN);
     });
+    if (q.type === 'table' && typeof answers[q.id + '_table'] === 'string') {
+      var t = tableOf_(answers[q.id + '_table']);
+      if (t) {
+        out[q.id + '_table'] = JSON.stringify(t).slice(0, MAX_TABLE_LEN);
+        out[q.id] = tableText_(t);
+      }
+    }
   });
   return out;
+}
+
+/** 기록표 문항: 표 JSON을 검사·정리한다. */
+function tableOf_(json) {
+  var t;
+  try { t = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { return null; }
+  if (!t || !Array.isArray(t.cols) || !Array.isArray(t.rows)) return null;
+  var cell = function (v) { return String(v === undefined || v === null ? '' : v).slice(0, 40); };
+  var cols = t.cols.slice(0, TABLE_MAX_COLS).map(cell);
+  if (cols.length < 1) return null;
+  var rows = t.rows.slice(0, TABLE_MAX_ROWS).map(function (r) {
+    r = Array.isArray(r) ? r : [];
+    return cols.map(function (_, j) { return cell(r[j]); });
+  });
+  var types = ['꺾은선 그래프', '막대그래프', '점 그래프'];
+  return {
+    cols: cols, rows: rows,
+    type: types.indexOf(t.type) >= 0 ? t.type : types[0],
+    x: cell(t.x), y: cell(t.y)
+  };
+}
+
+function tableReady_(t) {
+  if (!t) return false;
+  var named = t.cols.filter(function (c) { return c.trim(); }).length;
+  return named >= 2 && t.x.trim() !== '' && t.y.trim() !== '';
+}
+
+/** AI와 검토 화면에 보낼 표 요약 글 */
+function tableText_(t) {
+  var lines = ['기록표 칸: ' + t.cols.map(function (c) { return c.trim() || '(빈 칸)'; }).join(' | ')];
+  var firsts = t.rows.map(function (r) { return r[0].trim(); }).filter(String);
+  lines.push('기록표 행 ' + t.rows.length + '개' + (firsts.length ? ' (첫째 열: ' + firsts.join(', ') + ')' : ''));
+  var filled = t.rows.filter(function (r) { return r.slice(1).some(function (v) { return v.trim(); }); });
+  if (filled.length) lines.push('미리 채운 칸: ' + filled.map(function (r) { return r.join(' / '); }).join('; '));
+  lines.push('그래프: ' + t.type + ', 가로축 ' + (t.x.trim() || '(미정)') + ', 세로축 ' + (t.y.trim() || '(미정)'));
+  return lines.join('\n');
 }
 
 /* ───────────── 접속 ───────────── */
@@ -313,7 +360,11 @@ function requestFeedback(token, qid, answers) {
   answers = cleanAnswers_(answers);
   var current = answers[qid] || '';
   if (q.choices && answers[qid + '_choice']) current = '[선택: ' + answers[qid + '_choice'] + '] ' + current;
-  if (current.replace(/\s/g, '').length < 2) throw new Error('먼저 답을 써 주세요.');
+  if (q.type === 'table') {
+    if (!tableReady_(tableOf_(answers[qid + '_table']))) throw new Error('먼저 표의 칸 이름을 2개 이상 쓰고, 그래프의 가로축과 세로축을 정해 주세요.');
+  } else if (current.replace(/\s/g, '').length < 2) {
+    throw new Error('먼저 답을 써 주세요.');
+  }
 
   var history = st.feedback[qid] || [];
   var max = Number(cfg_('MAX_FEEDBACK', '3'));
@@ -402,6 +453,7 @@ var CHECK_SYSTEM = [
 function missingRequired_(answers) {
   return QUESTIONS.filter(function (q) {
     if (!q.required) return false;
+    if (q.type === 'table') return !tableReady_(tableOf_(answers[q.id + '_table']));
     if (q.choices && !answers[q.id + '_choice']) return true;
     return String(answers[q.id] || '').replace(/\s/g, '').length < 2;
   }).map(function (q) { return q.id; });
@@ -515,7 +567,17 @@ function fillPlan_(p, st) {
   var checks = st.check.questions.map(function (q, i) {
     return { question: q, answer: st.check.answers[i], comment: (aiChecks[i] && aiChecks[i].comment) || '' };
   });
+  // 기록표와 그래프 축은 AI 정리 대신 학생이 만든 표를 그대로 쓴다.
+  var tbl = tableOf_(st.answers.q14_table);
+  if (tbl) {
+    p.recordColumns = tbl.cols.map(function (c) { return c.trim() || ' '; });
+    p.recordRows = tbl.rows;
+    p.graphType = tbl.type;
+    if (tbl.x.trim()) p.graphX = tbl.x.trim();
+    if (tbl.y.trim()) p.graphY = tbl.y.trim();
+  }
   return {
+    recordRows: p.recordRows || [], graphType: p.graphType || '',
     question: s(p.question), reason: s(p.reason), hypothesis: s(p.hypothesis),
     independent: s(p.independent), dependent: s(p.dependent),
     controlled: arr(p.controlled).map(function (c) { return { name: s(c.name), how: s(c.how) }; }),
@@ -584,12 +646,13 @@ function createPlanDoc_(st, topic, p) {
   section('8. 결과 기록표와 그래프');
   if (p.recordColumns.length) {
     var rec = [p.recordColumns];
-    for (var r = 0; r < 5; r++) rec.push(p.recordColumns.map(function () { return ''; }));
+    p.recordRows.forEach(function (r) { rec.push(p.recordColumns.map(function (_, j) { return r[j] || ''; })); });
+    while (rec.length < 4) rec.push(p.recordColumns.map(function () { return ''; }));
     table(rec);
   } else {
     body.appendParagraph(p.recordText || '(작성하지 않음)');
   }
-  body.appendParagraph('그래프: 가로축 ' + p.graphX + ' / 세로축 ' + p.graphY);
+  body.appendParagraph('그래프: ' + (p.graphType ? p.graphType + ', ' : '') + '가로축 ' + p.graphX + ' / 세로축 ' + p.graphY);
 
   section('9. 안전 수칙');
   bullets(p.safety);

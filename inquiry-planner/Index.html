@@ -101,6 +101,32 @@
   .choice { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font-size: 15px; }
   .choice:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
   .q-actions { margin-top: 10px; }
+  .info { white-space: pre-line; font-size: 14px; line-height: 1.7; background: #f6f8fb; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+  .tbl-scroll { overflow-x: auto; margin-bottom: 8px; }
+  table.rec { border-collapse: collapse; }
+  table.rec th, table.rec td { border: 1px solid var(--line); padding: 0; }
+  table.rec th { background: var(--brand-soft); }
+  table.rec input { width: 100%; min-width: 120px; border: 0; border-radius: 0; background: transparent; padding: 8px 10px; }
+  table.rec th input { font-weight: 700; }
+  table.rec input:focus { outline: 2px solid var(--brand); outline-offset: -2px; background: #fff; }
+  table.rec .ctl { border: 0; background: transparent; width: 52px; white-space: nowrap; text-align: center; }
+  table.rec td:not(.ctl), table.rec th:not(.ctl) { width: 150px; }
+  .icon-btn { border: 0; background: transparent; color: var(--soft); cursor: pointer; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+  .icon-btn:hover { background: var(--rethink-bg); color: var(--rethink); }
+  .icon-btn:disabled { opacity: .3; cursor: default; background: transparent; color: var(--soft); }
+  .tbl-actions { margin-bottom: 14px; }
+  .graph-set { display: grid; grid-template-columns: minmax(130px, 1fr) 2fr 2fr; gap: 10px; margin-bottom: 10px; }
+  .graph-set label { font-size: 14px; color: var(--soft); display: grid; gap: 4px; }
+  .graph-set select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe; font: inherit; color: var(--ink); }
+  .graph-prev { border: 1px dashed var(--line); border-radius: 10px; padding: 8px; background: #fff; }
+  .graph-prev svg { display: block; width: 100%; height: auto; max-height: 260px; }
+  .graph-prev .ax { stroke: var(--ink); stroke-width: 1.5; fill: none; }
+  .graph-prev .tick { stroke: var(--soft); stroke-width: 1; }
+  .graph-prev .bar { fill: var(--brand-soft); stroke: var(--brand); stroke-dasharray: 4 3; }
+  .graph-prev .pt { fill: #fff; stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 3 2; }
+  .graph-prev text { font-family: inherit; font-size: 13px; fill: var(--ink); }
+  .graph-prev text.soft { fill: var(--soft); font-size: 12px; }
+  @media (max-width: 560px) { .graph-set { grid-template-columns: 1fr; } }
 
   .fb { margin-top: 12px; border-radius: 12px; padding: 14px 16px; border: 1px solid; }
   .fb.good { background: var(--good-bg); border-color: #bfe1cd; }
@@ -263,8 +289,103 @@ function allQs() { return S.cfg.questions.map(withTopic); }
 function qsOf(stageId) { return allQs().filter(q => q.stage === stageId); }
 function answered(q) {
   const a = S.me.answers;
+  if (q.type === 'table') return tableReady(tableGet(q.id));
   if (q.choices && !a[q.id + '_choice']) return false;
   return String(a[q.id] || '').replace(/\s/g, '').length >= 2;
+}
+const UI_MAX_COLS = 8, UI_MAX_ROWS = 12;
+const GRAPH_TYPES = ['꺾은선 그래프', '막대그래프', '점 그래프'];
+function tableGet(qid) {
+  try {
+    const t = JSON.parse(S.me.answers[qid + '_table'] || '');
+    if (t && Array.isArray(t.cols) && Array.isArray(t.rows)) return t;
+  } catch (e) { /* 기본 표 사용 */ }
+  return { cols: ['', ''], rows: [['', ''], ['', ''], ['', '']], type: GRAPH_TYPES[0], x: '', y: '' };
+}
+function tableReady(t) { return t.cols.filter(c => c.trim()).length >= 2 && t.x.trim() !== '' && t.y.trim() !== ''; }
+function tableText(t) {
+  const lines = ['기록표 칸: ' + t.cols.map(c => c.trim() || '(빈 칸)').join(' | ')];
+  const firsts = t.rows.map(r => r[0].trim()).filter(Boolean);
+  lines.push(`기록표 행 ${t.rows.length}개` + (firsts.length ? ` (첫째 열: ${firsts.join(', ')})` : ''));
+  const filled = t.rows.filter(r => r.slice(1).some(v => v.trim()));
+  if (filled.length) lines.push('미리 채운 칸: ' + filled.map(r => r.join(' / ')).join('; '));
+  lines.push(`그래프: ${t.type}, 가로축 ${t.x.trim() || '(미정)'}, 세로축 ${t.y.trim() || '(미정)'}`);
+  return lines.join('\n');
+}
+function tableSave(qid, t) {
+  S.me.answers[qid + '_table'] = JSON.stringify(t);
+  S.me.answers[qid] = tableText(t);
+  markDirty();
+}
+function cut(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function graphSvg(t) {
+  const W = 440, H = 240, L = 56, R = 420, T = 34, B = 196;
+  const cats = t.rows.map(r => r[0].trim()).filter(Boolean);
+  const n = Math.max(cats.length, 1);
+  const step = (R - L) / n;
+  let marks = '';
+  cats.forEach((c, i) => {
+    const cx = L + step * (i + 0.5);
+    marks += `<line class="tick" x1="${cx}" y1="${B}" x2="${cx}" y2="${B + 5}"/><text class="soft" x="${cx}" y="${B + 20}" text-anchor="middle">${esc(cut(c, 8))}</text>`;
+  });
+  const xl = t.x.trim() || '가로축: 무엇을 놓을까요?';
+  const yl = t.y.trim() || '세로축: 무엇을 놓을까요?';
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t.type)} 틀: 가로축 ${esc(xl)}, 세로축 ${esc(yl)}">
+    <path class="ax" d="M${L} ${T} V${B} H${R}"/>
+    <path class="ax" d="M${L - 5} ${T + 8} L${L} ${T} L${L + 5} ${T + 8} M${R - 8} ${B - 5} L${R} ${B} L${R - 8} ${B + 5}"/>
+    ${marks}
+    <text class="soft" x="${(L + R) / 2}" y="${(T + B) / 2}" text-anchor="middle">${esc(t.type)} · 측정하면 여기에 결과가 그려져요</text>
+    <text x="${L - 8}" y="${T - 14}" class="${t.y.trim() ? '' : 'soft'}">↑ ${esc(cut(yl, 40))}</text>
+    <text x="${R}" y="${H - 6}" text-anchor="end" class="${t.x.trim() ? '' : 'soft'}">${esc(cut(xl, 40))} →</text>
+  </svg>`;
+}
+function tableEditor(q) {
+  const t = tableGet(q.id);
+  const ph = j => j === 0 ? '바꾸는 것 (단위)' : j === 1 ? '재는 것 (단위)' : '칸 이름';
+  return `
+    <div class="tbl-scroll"><table class="rec" id="tb-${q.id}">
+      <thead><tr>${t.cols.map((c, j) => `<th><input data-h="${j}" value="${esc(c)}" placeholder="${ph(j)}" maxlength="40" aria-label="${j + 1}번째 칸 이름"></th>`).join('')}<th class="ctl"></th></tr></thead>
+      <tbody>${t.rows.map((r, i) => `<tr>${t.cols.map((_, j) => `<td><input data-r="${i}" data-c="${j}" value="${esc(r[j] || '')}" placeholder="${j === 0 ? '조건' : ''}" maxlength="40" aria-label="${i + 1}행 ${j + 1}열"></td>`).join('')}
+        <td class="ctl"><button type="button" class="icon-btn" data-delrow="${i}" ${t.rows.length <= 1 ? 'disabled' : ''} aria-label="${i + 1}행 지우기">행 ×</button></td></tr>`).join('')}</tbody>
+      <tfoot><tr>${t.cols.map((_, j) => `<td class="ctl"><button type="button" class="icon-btn" data-delcol="${j}" ${t.cols.length <= 2 ? 'disabled' : ''} aria-label="${j + 1}열 지우기">열 ×</button></td>`).join('')}<td class="ctl"></td></tr></tfoot>
+    </table></div>
+    <div class="row tbl-actions">
+      <button type="button" class="btn small ghost" id="addrow-${q.id}" ${t.rows.length >= UI_MAX_ROWS ? 'disabled' : ''}>+ 행 추가</button>
+      <button type="button" class="btn small ghost" id="addcol-${q.id}" ${t.cols.length >= UI_MAX_COLS ? 'disabled' : ''}>+ 열 추가</button>
+      <span class="muted">행 ${t.rows.length}개 · 열 ${t.cols.length}개</span>
+    </div>
+    <div class="graph-set">
+      <label>그래프 종류<select id="gt-${q.id}">${GRAPH_TYPES.map(g => `<option ${g === t.type ? 'selected' : ''}>${g}</option>`).join('')}</select></label>
+      <label>가로축에 놓을 것<input type="text" id="gx-${q.id}" value="${esc(t.x)}" maxlength="40" placeholder="무엇을, 어떤 단위로?"></label>
+      <label>세로축에 놓을 것<input type="text" id="gy-${q.id}" value="${esc(t.y)}" maxlength="40" placeholder="무엇을, 어떤 단위로?"></label>
+    </div>
+    <div class="graph-prev" id="gp-${q.id}">${graphSvg(t)}</div>`;
+}
+function bindTable(q) {
+  const tb = document.getElementById('tb-' + q.id);
+  const t = tableGet(q.id);
+  const redraw = () => { document.getElementById('gp-' + q.id).innerHTML = graphSvg(t); };
+  const rebuild = focusSel => { tableSave(q.id, t); refreshCard(q); if (focusSel) document.querySelector(`#card-${q.id} ${focusSel}`)?.focus(); };
+  tb.addEventListener('input', ev => {
+    const el = ev.target;
+    if (el.dataset.h !== undefined) t.cols[+el.dataset.h] = el.value;
+    else if (el.dataset.r !== undefined) t.rows[+el.dataset.r][+el.dataset.c] = el.value;
+    tableSave(q.id, t); redraw();
+  });
+  tb.addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b || b.disabled) return;
+    if (b.dataset.delrow !== undefined) { t.rows.splice(+b.dataset.delrow, 1); rebuild(); }
+    if (b.dataset.delcol !== undefined) { const j = +b.dataset.delcol; t.cols.splice(j, 1); t.rows.forEach(r => r.splice(j, 1)); rebuild(); }
+  });
+  document.getElementById('addrow-' + q.id).onclick = () => {
+    t.rows.push(t.cols.map(() => '')); rebuild(`input[data-r="${t.rows.length - 1}"][data-c="0"]`);
+  };
+  document.getElementById('addcol-' + q.id).onclick = () => {
+    t.cols.push(''); t.rows.forEach(r => r.push('')); rebuild(`input[data-h="${t.cols.length - 1}"]`);
+  };
+  document.getElementById('gt-' + q.id).onchange = ev => { t.type = ev.target.value; tableSave(q.id, t); redraw(); };
+  document.getElementById('gx-' + q.id).oninput = ev => { t.x = ev.target.value; tableSave(q.id, t); redraw(); };
+  document.getElementById('gy-' + q.id).oninput = ev => { t.y = ev.target.value; tableSave(q.id, t); redraw(); };
 }
 function stageDone(st) { return qsOf(st.id).every(q => !q.required || answered(q)); }
 function lastFb(qid) { const h = S.me.feedback[qid] || []; return h[h.length - 1]; }
@@ -303,10 +424,11 @@ function qCard(q) {
       ${fb ? `<span class="tag ${fb.level}">${LV[fb.level]}</span>` : q.required ? '<span class="tag">필수</span>' : '<span class="tag">선택</span>'}
     </div>
     <p class="q-prompt">${esc(q.prompt)}</p>
+    ${q.info ? `<div class="info">${esc(q.info)}</div>` : ''}
     <details class="hint"><summary>힌트 보기</summary><p>${esc(q.hint)}</p></details>
     ${q.choices ? `<div class="choices">${q.choices.map(c => `
       <label class="choice"><input type="radio" name="${q.id}_choice" value="${esc(c)}" ${a[q.id + '_choice'] === c ? 'checked' : ''}>${esc(c)}</label>`).join('')}</div>` : ''}
-    <textarea id="ta-${q.id}" rows="${q.rows || 3}" placeholder="${q.choices ? '그렇게 예상한 이유' : '여기에 써 보세요'}">${esc(a[q.id] || '')}</textarea>
+    ${q.type === 'table' ? tableEditor(q) : `<textarea id="ta-${q.id}" rows="${q.rows || 3}" placeholder="${q.choices ? '그렇게 예상한 이유' : '여기에 써 보세요'}">${esc(a[q.id] || '')}</textarea>`}
     <div class="row q-actions">
       <button class="btn small" id="fbb-${q.id}">피드백 받기</button>
       <span class="muted" id="fbl-${q.id}">${fbLeftText(q.id)}</span>
@@ -339,7 +461,8 @@ function fbHtml(qid) {
 
 function bindCard(q) {
   const ta = document.getElementById('ta-' + q.id);
-  ta.oninput = () => { S.me.answers[q.id] = ta.value; markDirty(); };
+  if (ta) ta.oninput = () => { S.me.answers[q.id] = ta.value; markDirty(); };
+  if (q.type === 'table') bindTable(q);
   document.querySelectorAll(`input[name="${q.id}_choice"]`).forEach(r => r.onchange = () => { S.me.answers[q.id + '_choice'] = r.value; markDirty(); });
   const b = document.getElementById('fbb-' + q.id);
   b.disabled = (S.me.feedback[q.id] || []).length >= S.cfg.maxFeedback;
