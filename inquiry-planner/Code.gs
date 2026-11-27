@@ -1,8 +1,10 @@
 /**
  * 탐구 계획 학습지 — Google Apps Script 웹앱 (서버 코드)
  *
- * 처음 한 번: 편집기에서 setup() 을 실행한 뒤, 프로젝트 설정 → 스크립트 속성에
- * GEMINI_API_KEY 와 CLASS_CODE 를 넣으세요. 자세한 방법은 README.md.
+ * 스프레드시트의 확장 프로그램 → Apps Script 에 붙여 넣은 경우:
+ *   시트를 새로고침하면 생기는 "탐구 학습지" 메뉴 → "처음 설정하기"를 누르세요.
+ * 독립 프로젝트로 만든 경우: 편집기에서 setup() 을 실행한 뒤 스크립트 속성에
+ *   GEMINI_API_KEY 와 CLASS_CODE 를 넣으세요. 자세한 방법은 README.md.
  */
 
 var PROPS = PropertiesService.getScriptProperties();
@@ -25,7 +27,9 @@ function cfg_(key, dflt) {
 
 function setup() {
   var ssId = PROPS.getProperty('SHEET_ID');
-  var ss = ssId ? SpreadsheetApp.openById(ssId) : SpreadsheetApp.create('탐구 계획 학습지 - 학생 기록');
+  // 스프레드시트에 붙은 스크립트면 그 시트를, 아니면 새 시트를 학생 기록으로 쓴다.
+  var ss = ssId ? SpreadsheetApp.openById(ssId)
+    : (SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.create('탐구 계획 학습지 - 학생 기록'));
   PROPS.setProperty('SHEET_ID', ss.getId());
 
   var sh = ss.getSheetByName(SHEET_STUDENTS) || ss.insertSheet(SHEET_STUDENTS);
@@ -59,6 +63,57 @@ function setup() {
   Logger.log('계획서 폴더: ' + DriveApp.getFolderById(PROPS.getProperty('FOLDER_ID')).getUrl());
   if (!PROPS.getProperty('GEMINI_API_KEY')) Logger.log('⚠ 스크립트 속성에 GEMINI_API_KEY 를 넣어 주세요.');
   if (!PROPS.getProperty('CLASS_CODE')) Logger.log('⚠ 스크립트 속성에 CLASS_CODE(수업 코드)를 넣어 주세요.');
+}
+
+/* ───────────── 스프레드시트 메뉴 (시트에 붙은 스크립트일 때) ───────────── */
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('탐구 학습지')
+    .addItem('처음 설정하기', 'menuSetup')
+    .addItem('API 키 바꾸기', 'menuSetKey')
+    .addItem('수업 코드 바꾸기', 'menuSetCode')
+    .addItem('AI 연결 시험하기', 'menuTest')
+    .addToUi();
+}
+
+function menuSetup() {
+  setup();
+  var ui = SpreadsheetApp.getUi();
+  if (!PROPS.getProperty('GEMINI_API_KEY') && !menuSetKey()) return;
+  if (!PROPS.getProperty('CLASS_CODE') && !menuSetCode()) return;
+  ui.alert('설정 완료',
+    '학생 기록은 이 시트의 "학생" 탭에, 계획서는 드라이브의 "탐구 계획서 (학생 제출)" 폴더에 저장됩니다.\n\n' +
+    '다음 단계: 메뉴의 "AI 연결 시험하기"로 키를 확인한 뒤, Apps Script 편집기에서 배포 → 새 배포 → 웹 앱으로 배포하세요.',
+    ui.ButtonSet.OK);
+}
+
+function menuSetKey() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('Gemini API 키', 'Google AI Studio에서 만든 API 키를 붙여 넣으세요. (스크립트 안에만 저장되고 학생에게는 보이지 않아요)', ui.ButtonSet.OK_CANCEL);
+  var v = r.getResponseText().trim();
+  if (r.getSelectedButton() !== ui.Button.OK || !v) return false;
+  PROPS.setProperty('GEMINI_API_KEY', v);
+  return true;
+}
+
+function menuSetCode() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('수업 코드', '학생들이 들어올 때 입력할 수업 코드를 정하세요. (예: SCI1)', ui.ButtonSet.OK_CANCEL);
+  var v = r.getResponseText().trim();
+  if (r.getSelectedButton() !== ui.Button.OK || !v) return false;
+  PROPS.setProperty('CLASS_CODE', v);
+  return true;
+}
+
+function menuTest() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    var out = gemini_('JSON으로만 답한다: {"ok":true,"msg":"..."}', '고등학생에게 한 문장으로 인사해 줘.', { maxTokens: 512 });
+    ui.alert('AI 연결 성공', '모델: ' + cfg_('MODEL', 'gemini-2.5-flash') + '\n응답: ' + (out.msg || JSON.stringify(out)), ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('AI 연결 실패', '모델 이름(' + cfg_('MODEL', 'gemini-2.5-flash') + ')이나 API 키를 확인해 주세요.\n' +
+      '자세한 원인은 Apps Script 편집기 → 실행 기록에 있어요.', ui.ButtonSet.OK);
+  }
 }
 
 function doGet() {
